@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SmartLingo Pro - Help</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    font-size: 1em;
+    max-width: 800px;
+    margin: 30px auto;
+    padding: 0 20px;
+    background: #fff;
+    color: #111;
+    line-height: 1.6;
+  }
+  h1 { font-size: 1.8em; border-bottom: 2px solid #333; padding-bottom: 5px; color: #222; }
+  h2 { font-size: 1.3em; margin-top: 30px; border-bottom: 1px solid #ccc; padding-bottom: 3px; color: #444; }
+  table { border-collapse: collapse; width: 100%; margin-top: 15px; margin-bottom: 15px; }
+  th, td { border: 1px solid #aaa; padding: 10px 12px; text-align: left; }
+  th { background: #f4f4f4; color: #333; }
+  ul, ol { margin: 10px 0; padding-left: 25px; }
+  li { margin: 6px 0; }
+  .intro { font-size: 1.1em; color: #555; }
+  strong { color: #222; }
+</style>
+</head>
+<body>
+
+<h1>Welcome to SmartLingo Pro! 👋</h1>
+<p class="intro">SmartLingo Pro is your personal, AI-powered translator built right into the NVDA screen reader. We built this addon so you wouldn't have to constantly switch windows or juggle different translation websites. Translate copied text or speak into your microphone—all without leaving what you're currently doing!</p>
+
+<h2>🌟 What can it do?</h2>
+<ul>
+  <li><strong>Instant Translations:</strong> Just copy some text, press a hotkey, and get an instant AI translation read out to you.</li>
+  <li><strong>Speak to Translate:</strong> Press a hotkey, speak into your microphone, and we'll translate your voice!</li>
+  <li><strong>Smart Language Detection:</strong> You don't even need to tell it what language you're copying—it'll figure it out automatically.</li>
+  <li><strong>Quick Language Swap:</strong> Easily switch between your source and target languages. It even does this automatically if it detects you're already reading in your target language!</li>
+  <li><strong>Chat Mode:</strong> Need more context? Open up the chat window and talk directly to the translator.</li>
+  <li><strong>Auto-Copy:</strong> As soon as a translation is ready, we copy it to your clipboard so you can paste it anywhere.</li>
+  <li><strong>Pick your AI:</strong> Choose between Google Gemini, OpenAI, or Groq based on what you prefer.</li>
+</ul>
+
+<h2>🛠️ What do you need to use it?</h2>
+<p>It's pretty simple to get started, but you will need a couple of things:</p>
+<ul>
+  <li><strong>NVDA Screen Reader</strong> (version 2024.1 or newer).</li>
+  <li><strong>Windows 10</strong> or a newer version.</li>
+  <li><strong>An API Key:</strong> This is basically a password that lets the addon talk to the AI. You can get one for free from Groq, Google AI Studio (Gemini), or use a paid one from OpenAI.</li>
+  <li><em>(Optional)</em> A microphone for voice input. The addon will help you install "PyAudio" the first time you try to use your voice.</li>
+</ul>
+
+<h2>🚀 How to Install</h2>
+<ol>
+  <li>Download the <code>SmartLingo.nvda-addon</code> file from our Releases page.</li>
+  <li>Just double-click the file! NVDA will handle the rest.</li>
+  <li>When NVDA asks, let it restart.</li>
+  <li>Once NVDA is back up, go to <strong>NVDA Menu > Preferences > Settings</strong>, find <strong>SmartLingo Pro</strong> in the list, and paste in your API key.</li>
+</ol>
+
+<h2>⌨️ Important Keyboard Shortcuts</h2>
+<p>We've tried to make the shortcuts as easy to remember as possible:</p>
+<table>
+  <tr><th>Shortcut</th><th>What it does</th></tr>
+  <tr><td><strong>NVDA + Alt + T</strong></td><td>Translate whatever text you currently have copied.</td></tr>
+  <tr><td><strong>NVDA + Alt + V</strong></td><td>Start/Stop recording your voice for translation.</td></tr>
+  <tr><td><strong>NVDA + Alt + S</strong></td><td>Swap your source and target languages around.</td></tr>
+  <tr><td><strong>NVDA + Alt + A</strong></td><td>Check what languages you are currently translating between.</td></tr>
+  <tr><td><strong>NVDA + Alt + L</strong></td><td>Jump straight into the SmartLingo settings.</td></tr>
+</table>
+
+<h2>⚙️ Customizing SmartLingo</h2>
+<p>You can tweak how SmartLingo works by going to <strong>NVDA Settings > SmartLingo Pro</strong>. Here's what you can change:</p>
+<ul>
+  <li><strong>AI Model & API Key:</strong> Choose which AI brain you want to use and give it the key.</li>
+  <li><strong>Languages:</strong> Set what language you usually translate from (or leave it on Auto-detect) and what language you want things translated into.</li>
+  <li><strong>Auto-Swap & Language for swapping:</strong> If you try to translate something that's already in your target language, SmartLingo will be smart enough to flip the languages around for you!</li>
+  <li><strong>Auto-copy:</strong> Decide if you want every translation to be automatically copied to your clipboard.</li>
+  <li><strong>Chat Window:</strong> Turn this on if you want a dedicated window to pop up for a more conversational experience.</li>
+</ul>
+
+<h2>🎤 Using Your Voice</h2>
+<p>Want to just talk? It's easy!</p>
+<ul>
+  <li>Press <strong>NVDA + Alt + V</strong>, say what you want to translate, and press the shortcut again to stop.</li>
+  <li>Note: The first time you do this, the addon might ask to install a small tool called "PyAudio" to handle your microphone. Just say yes, and it'll set itself up!</li>
+</ul>
+
+<h2>🙌 Credits & Thanks</h2>
+<ul>
+  <li>This addon was brought to life with the help of AI (Google Gemini).</li>
+  <li>Inspired by amazing addons like Instant Translator.</li>
+  <li>Idea, design, and testing by Zameer.</li>
+</ul>
+
+<p style="margin-top: 30px; font-size: 0.9em; color: #666; border-top: 1px solid #ddd; padding-top: 10px;">
+  <em>Note: This addon is provided for personal and educational use. Happy translating!</em>
+</p>
+
+</body>
+</html>
