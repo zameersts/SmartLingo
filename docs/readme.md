@@ -65,4 +65,4 @@ Want to just talk? It's easy!
 - Idea, design, and testing by Zameer.
 
 ---
-*Note: This addon is provided for personal and educational use. Happy translating!*
+*Note: SmartLingo Pro is open-source software licensed under the GNU General Public License v2.0.*
