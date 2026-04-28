@@ -1,0 +1,7 @@
+# NVDA Addon builds
+*.nvda-addon
+*.zip
+
+# Python
+__pycache__/
+*.pyc
