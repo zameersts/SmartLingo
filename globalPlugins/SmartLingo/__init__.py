@@ -74,7 +74,6 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 			))
 
 		self._voiceManager = VoiceInputManager(self._onVoiceText)
-		wx.CallLater(2000, self._check_and_install_pyaudio)
 
 	def terminate(self):
 		try:
@@ -160,58 +159,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	def _onVoiceText(self, text):
 		self.do_translate(text)
 
-	def _check_and_install_pyaudio(self):
-		from .voiceInput import _AUDIO_AVAILABLE
-		if _AUDIO_AVAILABLE: return
-		if gui.messageBox(_("PyAudio is required for voice input. Install now?"), _("Install Required"), wx.YES_NO) == wx.YES:
-			threading.Thread(target=self._run_pyaudio_install, daemon=True).start()
 
-	def _run_pyaudio_install(self):
-		import io, json, ssl, struct, sys, urllib.request, zipfile, os, queueHandler
-		
-		addon_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-		lib_dir = os.path.join(addon_root, "lib")
-		queueHandler.queueFunction(queueHandler.eventQueue, ui.message, _("Downloading PyAudio..."))
-
-		try:
-			os.makedirs(lib_dir, exist_ok=True)
-			ctx = ssl.create_default_context()
-			ctx.check_hostname = False
-			ctx.verify_mode = ssl.CERT_NONE
-
-			with urllib.request.urlopen("https://pypi.org/pypi/pyaudio/json", context=ctx, timeout=20) as resp:
-				pypi = json.loads(resp.read())
-
-			py_tag = "cp{}{}".format(sys.version_info.major, sys.version_info.minor)
-			plat_tag = "win_amd64" if struct.calcsize("P") == 8 else "win32"
-			wheel_url = None
-
-			for f in pypi.get("urls", []):
-				fn = f["filename"]
-				if fn.endswith(".whl") and py_tag in fn and plat_tag in fn:
-					wheel_url = f["url"]
-					break
-
-			if not wheel_url:
-				for ver in sorted(pypi.get("releases", {}), reverse=True):
-					for f in pypi["releases"][ver]:
-						fn = f["filename"]
-						if fn.endswith(".whl") and py_tag in fn and plat_tag in fn:
-							wheel_url = f["url"]
-							break
-					if wheel_url: break
-
-			if not wheel_url: raise RuntimeError("No compatible wheel found.")
-
-			with urllib.request.urlopen(wheel_url, context=ctx, timeout=60) as resp:
-				with zipfile.ZipFile(io.BytesIO(resp.read())) as zf:
-					zf.extractall(lib_dir)
-
-			queueHandler.queueFunction(queueHandler.eventQueue, lambda: gui.messageBox(_("PyAudio installed. Please restart NVDA."), _("Success"), wx.OK))
-		except Exception as e:
-			import logHandler
-			logHandler.log.error(f"PyAudio install failed: {e}")
-			queueHandler.queueFunction(queueHandler.eventQueue, lambda: gui.messageBox(_("Install failed. Please try manually."), _("Error"), wx.OK))
 
 
 	@scriptHandler.script(description=_("Announces the current source and target languages."), **speakOnDemand)

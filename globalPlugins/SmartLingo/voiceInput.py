@@ -29,7 +29,6 @@ except ImportError:
 _SAMPLE_RATE = 16000
 _CHANNELS = 1
 _CHUNK_SIZE = 1024
-_GOOGLE_STT_KEY = "AIzaSyBOti4mM-6x9WDnZIjIeyEU21OpBXqWBgw"
 
 class VoiceInputManager:
 	def __init__(self, on_text_ready):
@@ -132,8 +131,9 @@ class VoiceInputManager:
 			text = self._transcribe_openai(path, lang, openai_key)
 			if text: return text
 
-		# Fallback: Google STT legacy
-		return self._transcribe_google(path, lang)
+		# Fallback: No STT available
+		log.error("No valid STT API key provided (Groq or OpenAI).")
+		return None
 
 	def _transcribe_groq(self, path, lang, api_key):
 		try:
@@ -173,41 +173,7 @@ class VoiceInputManager:
 			log.error(f"OpenAI STT exception: {e}")
 		return None
 
-	def _transcribe_google(self, path, lang):
-		try:
-			with wave.open(path, "rb") as wf:
-				data = wf.readframes(wf.getnframes())
-			
-			locale = lang.replace("_", "-")
-			if "auto" in locale:
-				try:
-					import languageHandler
-					nvda_lang = getattr(languageHandler, 'curLang', None)
-					locale = nvda_lang.replace("_", "-") if nvda_lang and nvda_lang.lower() != "windows" else "en-US"
-				except: locale = "en-US"
-			elif "_" in lang: # Fix for ur_roman, hi_roman etc
-				locale = lang.split("_")[0]
 
-			url = f"https://www.google.com/speech-api/v2/recognize?output=json&lang={locale}&key={_GOOGLE_STT_KEY}"
-			headers = {"Content-Type": f"audio/l16;rate={_SAMPLE_RATE}", "User-Agent": "Mozilla/5.0"}
-			ctx = ssl.create_default_context()
-			ctx.check_hostname = False
-			ctx.verify_mode = ssl.CERT_NONE
-			
-			req = urllib.request.Request(url, data=data, headers=headers)
-			with urllib.request.urlopen(req, context=ctx, timeout=30) as resp:
-				res = resp.read().decode("utf-8")
-				for line in res.splitlines():
-					if not line.strip(): continue
-					try:
-						obj = json.loads(line)
-						if "result" in obj and len(obj["result"]) > 0:
-							alternatives = obj["result"][0].get("alternative", [])
-							if alternatives: return alternatives[0].get("transcript")
-					except: continue
-		except Exception as e:
-			log.error(f"Google STT error: {e}")
-		return None
 
 	def cleanup(self):
 		self._stop_event.set()
