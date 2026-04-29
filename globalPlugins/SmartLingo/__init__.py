@@ -35,6 +35,7 @@ confspec = {
 	"geminiApiKey": "string(default=)",
 	"openaiApiKey": "string(default=)",
 	"enablechat": "boolean(default=false)",
+	"autoupdate": "boolean(default=true)",
 }
 
 speakOnDemand = getSpeechOnDemandParameter()
@@ -74,6 +75,10 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 			))
 
 		self._voiceManager = VoiceInputManager(self._onVoiceText)
+		
+		if self.addonConf.get("autoupdate", True):
+			from .updater import check_for_update
+			check_for_update(background=True)
 
 	def terminate(self):
 		try:

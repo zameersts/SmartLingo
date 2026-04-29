@@ -21,6 +21,7 @@ Initial Release
 - Auto-Copy: Translation result copied to clipboard automatically
 - NVDA Settings Panel: Fully integrated settings (NVDA + Alt + L)
 - Language Announcement: Announce current language pair (NVDA + Alt + A)
+- Automatic Updater: Check for new releases directly from GitHub on startup or manually from settings
 
 
 SmartLingo Pro - Idea and Testing by Zameer | Code written with AI assistance

@@ -12,6 +12,7 @@ We built this addon so you wouldn't have to constantly switch windows or juggle 
 - **Quick Language Swap:** Easily switch between the language you're translating *from* and the one you're translating *to*. It even does this automatically if it detects you're already reading in your target language!
 - **Chat Mode:** Need more context? Open up the chat window and talk directly to the translator.
 - **Auto-Copy:** As soon as a translation is ready, we copy it to your clipboard so you can paste it anywhere.
+- **Automatic Updates:** Don't worry about missing new features! SmartLingo checks for new versions on GitHub and updates itself.
 - **Pick your AI:** You're not locked into one system. Choose between Google Gemini, OpenAI, or Groq based on what you prefer.
 
 ## 🛠️ What do you need to use it?

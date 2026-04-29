@@ -74,6 +74,17 @@ class SmartLingoSettingsPanel(SettingsPanel):
 		self.enableChatChk = helper.addItem(wx.CheckBox(self, label=_("Enable Chat Window for translations")))
 		self.enableChatChk.SetValue(self.addonConf.get('enablechat', False))
 
+		# Update Settings
+		helper.addItem(wx.StaticLine(self))
+		self.autoUpdateChk = helper.addItem(wx.CheckBox(self, label=_("Automatically check for updates on startup")))
+		self.autoUpdateChk.SetValue(self.addonConf.get('autoupdate', True))
+		
+		btnSizer = wx.BoxSizer(wx.HORIZONTAL)
+		self.checkUpdateBtn = wx.Button(self, label=_("Check for Updates now"))
+		self.checkUpdateBtn.Bind(wx.EVT_BUTTON, self.onCheckUpdate)
+		btnSizer.Add(self.checkUpdateBtn, 0, wx.ALL, 5)
+		helper.addItem(btnSizer)
+
 		# Set current selections
 		self._fromChoice.SetStringSelection(self.getDictKey(self.addonConf.get('from', 'auto')))
 		self._intoChoice.SetStringSelection(self.getDictKey(self.addonConf.get('into', 'en')))
@@ -108,6 +119,10 @@ class SmartLingoSettingsPanel(SettingsPanel):
 		
 		self.Layout()
 
+	def onCheckUpdate(self, event):
+		from .updater import check_for_update
+		check_for_update(background=False)
+
 	def onSave(self):
 		self.addonConf['model'] = self.modelChoice.GetStringSelection().lower()
 		self.addonConf['apiKey'] = self.apiKeyField.GetValue()
@@ -120,3 +135,4 @@ class SmartLingoSettingsPanel(SettingsPanel):
 		self.addonConf['autoswap'] = self.autoSwapChk.GetValue()
 		self.addonConf['copytranslatedtext'] = self.copyTranslationChk.GetValue()
 		self.addonConf['enablechat'] = self.enableChatChk.GetValue()
+		self.addonConf['autoupdate'] = self.autoUpdateChk.GetValue()
