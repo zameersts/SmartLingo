@@ -2,6 +2,7 @@
 # SmartLingo GitHub Updater
 
 import urllib.request
+import urllib.error
 import json
 import os
 import tempfile
@@ -9,6 +10,8 @@ import threading
 import wx
 import gui
 import addonHandler
+import ssl
+import time
 
 GITHUB_REPO = "zameersts/SmartLingo"
 LATEST_RELEASE_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
@@ -24,10 +27,30 @@ def get_current_version():
 def check_for_update(background=False):
 	threading.Thread(target=_check_update_thread, args=(background,)).start()
 
+def _create_ssl_context():
+	try:
+		ctx = ssl.create_default_context()
+		ctx.check_hostname = False
+		ctx.verify_mode = ssl.CERT_NONE
+		return ctx
+	except Exception:
+		return None
+
 def _check_update_thread(background):
 	try:
-		req = urllib.request.Request(LATEST_RELEASE_URL, headers={"User-Agent": "NVDA-SmartLingo-Updater"})
-		with urllib.request.urlopen(req, timeout=10) as response:
+		# Timestamp add kiya gaya taake cache ka issue na aye
+		url_with_ts = f"{LATEST_RELEASE_URL}?ts={int(time.time())}"
+		headers = {
+			"User-Agent": "NVDA-SmartLingo-Updater",
+			"Cache-Control": "no-cache",
+			"Pragma": "no-cache"
+		}
+		req = urllib.request.Request(url_with_ts, headers=headers)
+		
+		# Unverified context use karein taake SSL certificate error na aye
+		ctx = _create_ssl_context()
+		
+		with urllib.request.urlopen(req, timeout=10, context=ctx) as response:
 			data = json.loads(response.read().decode('utf-8'))
 			
 		latest_version = data.get("tag_name", "").lstrip("v")
@@ -52,6 +75,13 @@ def _check_update_thread(background):
 		else:
 			if not background:
 				wx.CallAfter(gui.messageBox, _("You are already using the latest version of SmartLingo."), _("SmartLingo Updater"), wx.OK | wx.ICON_INFORMATION)
+	except urllib.error.HTTPError as e:
+		if e.code == 403 and 'rate limit' in str(e.reason).lower():
+			if not background:
+				wx.CallAfter(gui.messageBox, _("GitHub API rate limit exceeded. Please try again later."), _("SmartLingo Updater Error"), wx.OK | wx.ICON_ERROR)
+		else:
+			if not background:
+				wx.CallAfter(gui.messageBox, _("Failed to check for updates: {}").format(e), _("SmartLingo Updater Error"), wx.OK | wx.ICON_ERROR)
 	except Exception as e:
 		if not background:
 			wx.CallAfter(gui.messageBox, _("Failed to check for updates: {}").format(e), _("SmartLingo Updater Error"), wx.OK | wx.ICON_ERROR)
@@ -71,8 +101,15 @@ def _download_and_install_thread(url, version):
 		file_name = "SmartLingoPro-{}.nvda-addon".format(version)
 		file_path = os.path.join(temp_dir, file_name)
 		
-		req = urllib.request.Request(url, headers={"User-Agent": "NVDA-SmartLingo-Updater"})
-		with urllib.request.urlopen(req) as response, open(file_path, 'wb') as out_file:
+		headers = {
+			"User-Agent": "NVDA-SmartLingo-Updater",
+			"Cache-Control": "no-cache"
+		}
+		req = urllib.request.Request(url, headers=headers)
+		
+		ctx = _create_ssl_context()
+		
+		with urllib.request.urlopen(req, timeout=30, context=ctx) as response, open(file_path, 'wb') as out_file:
 			out_file.write(response.read())
 		
 		# Open the downloaded file to trigger NVDA's addon installation dialog
