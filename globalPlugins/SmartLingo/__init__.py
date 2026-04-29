@@ -164,7 +164,14 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	def _onVoiceText(self, text):
 		self.do_translate(text)
 
-
+	@scriptHandler.script(description=_("Cancel ongoing recording or translation."))
+	def script_cancel(self, gesture):
+		if self._voiceManager.is_recording():
+			self._voiceManager.cancel()
+			ui.message(_("Recording cancelled."))
+		else:
+			self._last_request_id += 1
+			ui.message(_("Translation cancelled."))
 
 
 	@scriptHandler.script(description=_("Announces the current source and target languages."), **speakOnDemand)
@@ -185,6 +192,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	__gestures = {
 		"kb:NVDA+alt+t": "translateClipboardText",
 		"kb:NVDA+alt+v": "toggleVoiceInput",
+		"kb:NVDA+alt+c": "cancel",
 		"kb:NVDA+alt+s": "swapLanguages",
 		"kb:NVDA+alt+l": "showSettings",
 		"kb:NVDA+alt+a": "announceLanguages",

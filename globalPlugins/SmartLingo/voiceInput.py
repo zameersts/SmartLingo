@@ -35,6 +35,7 @@ class VoiceInputManager:
 		self.on_text_ready = on_text_ready
 		self.recognition_lang = "auto"
 		self._stop_event = threading.Event()
+		self._cancel_event = threading.Event()
 		self._thread = None
 		self.api_keys = {}
 
@@ -52,11 +53,20 @@ class VoiceInputManager:
 				ui.message("PyAudio missing.")
 				return
 			self._stop_event.clear()
+			self._cancel_event.clear()
 			self._thread = threading.Thread(target=self._run, daemon=True)
 			self._thread.start()
 
+	def cancel(self):
+		if self.is_recording():
+			self._cancel_event.set()
+			self._stop_event.set()
+
 	def _run(self):
 		frames = self._capture()
+
+		if self._cancel_event.is_set():
+			return
 		
 		import nvwave
 		stop_snd = os.path.join(os.path.dirname(__file__), "sounds", "send.wav")

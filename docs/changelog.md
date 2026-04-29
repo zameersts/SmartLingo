@@ -4,6 +4,11 @@ Changelog - SmartLingo Pro
 All notable changes to SmartLingo Pro are documented here.
 
 
+Version 1.1 - 2026-04-29
+-------------------------
+
+- Added Cancel Feature: Cancel ongoing voice recordings or translations (NVDA + Alt + C)
+
 Version 1.0 - 2026-04-28
 -------------------------
 

@@ -39,6 +39,7 @@ We've tried to make the shortcuts as easy to remember as possible:
 
 - **NVDA + Alt + T** : Translate whatever text you currently have copied.
 - **NVDA + Alt + V** : Start/Stop recording your voice for translation.
+- **NVDA + Alt + C** : Cancel an ongoing voice recording or background translation.
 - **NVDA + Alt + S** : Swap your source and target languages around.
 - **NVDA + Alt + A** : Check what languages you are currently translating between.
 - **NVDA + Alt + L** : Jump straight into the SmartLingo settings.
