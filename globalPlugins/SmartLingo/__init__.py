@@ -107,7 +107,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		langTo = self.lang_to
 		langSwap = self.lang_swap if (langFrom == "auto" and self.autoSwap) else None
 		
-		threading.Thread(target=self._run_translation, args=(request_id, text, langFrom, langTo, langSwap)).start()
+		threading.Thread(target=self._run_translation, args=(request_id, text, langFrom, langTo, langSwap), name=f"translation_{request_id}", daemon=True).start()
 
 	def _run_translation(self, request_id, text, langFrom, langTo, langSwap):
 		translator = Translator(langFrom, langTo, text, langSwap)
@@ -169,9 +169,19 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		if self._voiceManager.is_recording():
 			self._voiceManager.cancel()
 			ui.message(_("Recording cancelled."))
-		else:
+		elif self._is_translating():
 			self._last_request_id += 1
 			ui.message(_("Translation cancelled."))
+		else:
+			ui.message(_("Nothing to cancel."))
+
+	def _is_translating(self):
+		"""Check karo ke koi translation background mein chal rahi hai ya nahi."""
+		import threading
+		for thread in threading.enumerate():
+			if thread.name == f"translation_{self._last_request_id}" and thread.is_alive():
+				return True
+		return False
 
 
 	@scriptHandler.script(description=_("Announces the current source and target languages."), **speakOnDemand)

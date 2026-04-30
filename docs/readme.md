@@ -39,7 +39,7 @@ We've tried to make the shortcuts as easy to remember as possible:
 
 - **NVDA + Alt + T** : Translate whatever text you currently have copied.
 - **NVDA + Alt + V** : Start/Stop recording your voice for translation.
-- **NVDA + Alt + C** : Cancel an ongoing voice recording or background translation.
+- **NVDA + Alt + C** : Cancel an ongoing voice recording or translation. Says "Nothing to cancel" if idle.
 - **NVDA + Alt + S** : Swap your source and target languages around.
 - **NVDA + Alt + A** : Check what languages you are currently translating between.
 - **NVDA + Alt + L** : Jump straight into the SmartLingo settings.
@@ -58,7 +58,8 @@ You can tweak how SmartLingo works by going to **NVDA Settings > SmartLingo Pro*
 
 Want to just talk? It's easy!
 - Press **NVDA + Alt + V**, say what you want to translate, and press the shortcut again to stop.
-- Note: The first time you do this, the addon might ask to install a small tool called "PyAudio" to handle your microphone. Just say yes, and it'll set itself up!
+- Note: Voice input requires a Groq or OpenAI API key. Gemini does not support speech recognition.
+- The first time you use voice, ensure PyAudio is available (included with the addon).
 
 ## 🙌 Credits & Thanks
 

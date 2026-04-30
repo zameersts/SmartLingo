@@ -45,23 +45,24 @@ class SmartLingoSettingsPanel(SettingsPanel):
 		self.modelChoice.Bind(wx.EVT_CHOICE, self.onModelSwitch)
 		wx.CallAfter(self.onModelSwitch)
 
-
 		# Standard Translation Settings
 		helper.addItem(wx.StaticLine(self))
 		helper.addItem(wx.StaticText(self, label=_("Language Settings:")))
 		
 		choices = self.prepareChoices()
 		from_choices = deepcopy(choices)
-		if lngModule.g("zh-TW") in from_choices:
-			from_choices.remove(lngModule.g("zh-TW"))
+		
+		zh_tw_name = lngModule.g("zh-TW")
+		if zh_tw_name in from_choices:
+			from_choices.remove(zh_tw_name)
 		
 		self._fromChoice = helper.addLabeledControl(_("Source language:"), wx.Choice, choices=from_choices)
 		
 		into_choices = deepcopy(choices)
-		if lngModule.g("auto") in into_choices:
-			into_choices.remove(lngModule.g("auto"))
+		auto_name = lngModule.g("auto")
+		if auto_name in into_choices:
+			into_choices.remove(auto_name)
 		self._intoChoice = helper.addLabeledControl(_("Target language:"), wx.Choice, choices=into_choices)
-		
 		self._swapChoice = helper.addLabeledControl(_("Language for swapping (if Source is Auto):"), wx.Choice, choices=into_choices)
 		
 		# Toggles
@@ -86,37 +87,40 @@ class SmartLingoSettingsPanel(SettingsPanel):
 		helper.addItem(btnSizer)
 
 		# Set current selections
-		self._fromChoice.SetStringSelection(self.getDictKey(self.addonConf.get('from', 'auto')))
-		self._intoChoice.SetStringSelection(self.getDictKey(self.addonConf.get('into', 'en')))
-		self._swapChoice.SetStringSelection(self.getDictKey(self.addonConf.get('swap', 'en')))
+		self._fromChoice.SetStringSelection(self.getDisplayName(self.addonConf.get('from', 'auto')))
+		self._intoChoice.SetStringSelection(self.getDisplayName(self.addonConf.get('into', 'en')))
+		self._swapChoice.SetStringSelection(self.getDisplayName(self.addonConf.get('swap', 'ur_roman')))
 
 	def prepareChoices(self):
-		keys = list(langslist.keys())
-		auto = lngModule.g("auto")
-		if auto in keys: keys.remove(auto)
-		keys.sort(key=strxfrm)
-		return [auto] + keys
+		"""
+		Returns sorted list of display names.
+		langslist = {display_name: lang_code}
+		"""
+		all_names = list(langslist.keys())
+		auto_name = lngModule.g("auto")
+		if auto_name in all_names:
+			all_names.remove(auto_name)
+		all_names.sort(key=strxfrm)
+		return [auto_name] + all_names
 
-	def getDictKey(self, currentValue):
-		for key, value in langslist.items():
-			if value == currentValue:
-				return key
+	def getDisplayName(self, lang_code):
+		"""
+		Lang code se display name nikalta hai g() function use karke.
+		Pehle getDictKey() wrong fallback return karta tha.
+		"""
+		name = lngModule.g(lang_code)
+		if name in langslist:
+			return name
 		return lngModule.g("en")
 
 	def onModelSwitch(self, event=None):
 		sel = self.modelChoice.GetStringSelection().lower()
-		
-		groq_show = (sel == "groq")
-		gemini_show = (sel == "gemini")
-		openai_show = (sel == "openai")
-		
-		self.groqLabel.Show(groq_show)
-		self.apiKeyField.Show(groq_show)
-		self.geminiLabel.Show(gemini_show)
-		self.geminiKeyField.Show(gemini_show)
-		self.openaiLabel.Show(openai_show)
-		self.openaiKeyField.Show(openai_show)
-		
+		self.groqLabel.Show(sel == "groq")
+		self.apiKeyField.Show(sel == "groq")
+		self.geminiLabel.Show(sel == "gemini")
+		self.geminiKeyField.Show(sel == "gemini")
+		self.openaiLabel.Show(sel == "openai")
+		self.openaiKeyField.Show(sel == "openai")
 		self.Layout()
 
 	def onCheckUpdate(self, event):
@@ -128,10 +132,10 @@ class SmartLingoSettingsPanel(SettingsPanel):
 		self.addonConf['apiKey'] = self.apiKeyField.GetValue()
 		self.addonConf['geminiApiKey'] = self.geminiKeyField.GetValue()
 		self.addonConf['openaiApiKey'] = self.openaiKeyField.GetValue()
-		
-		self.addonConf['from'] = langslist[self._fromChoice.GetStringSelection()]
-		self.addonConf['into'] = langslist[self._intoChoice.GetStringSelection()]
-		self.addonConf['swap'] = langslist[self._swapChoice.GetStringSelection()]
+		# FIX: display name se lang code nikalna - .get() use karo crash se bachne ke liye
+		self.addonConf['from'] = langslist.get(self._fromChoice.GetStringSelection(), 'auto')
+		self.addonConf['into'] = langslist.get(self._intoChoice.GetStringSelection(), 'en')
+		self.addonConf['swap'] = langslist.get(self._swapChoice.GetStringSelection(), 'ur_roman')
 		self.addonConf['autoswap'] = self.autoSwapChk.GetValue()
 		self.addonConf['copytranslatedtext'] = self.copyTranslationChk.GetValue()
 		self.addonConf['enablechat'] = self.enableChatChk.GetValue()
