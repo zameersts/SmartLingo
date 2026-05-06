@@ -6,14 +6,15 @@ import os
 import sys
 import threading
 import wave
-import json
-import ssl
 import requests
 import tempfile
 import tones
 import ui
 import queueHandler
 from logHandler import log
+
+_session = requests.Session()
+_session.trust_env = False
 
 # Add lib/ to sys.path
 _addon_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -176,11 +177,11 @@ class VoiceInputManager:
 			
 			with open(path, "rb") as f:
 				files = {"file": (os.path.basename(path), f, "audio/wav")}
-				data = {"model": "whisper-large-v3"}
+				data = {"model": "whisper-large-v3-turbo"}
 				if iso_lang:
 					data["language"] = iso_lang
 				
-				resp = requests.post(url, headers=headers, files=files, data=data, timeout=30, verify=True)
+				resp = _session.post(url, headers=headers, files=files, data=data, timeout=30, verify=True)
 				if resp.status_code == 200:
 					return resp.json().get("text")
 				log.error(f"SmartLingo: Groq STT error {resp.status_code}: {resp.text}")
@@ -200,7 +201,7 @@ class VoiceInputManager:
 				if iso_lang:
 					data["language"] = iso_lang
 				
-				resp = requests.post(url, headers=headers, files=files, data=data, timeout=30, verify=True)
+				resp = _session.post(url, headers=headers, files=files, data=data, timeout=30, verify=True)
 				if resp.status_code == 200:
 					return resp.json().get("text")
 				log.error(f"SmartLingo: OpenAI STT error {resp.status_code}: {resp.text}")

@@ -12,7 +12,6 @@ import threading
 import ui
 import wx
 import tones
-import keyboardHandler
 from functools import wraps
 from .interface import SmartLingoSettingsPanel
 from .langslist import g
@@ -37,19 +36,11 @@ confspec = {
 	"openaiApiKey": "string(default=)",
 	"enablechat": "boolean(default=false)",
 	"autoupdate": "boolean(default=true)",
+	"dictationlang": "string(default=en)",
 }
 
 speakOnDemand = getSpeechOnDemandParameter()
 
-def finally_(func, final):
-	"""Calls final after func, even if it fails."""
-	@wraps(func)
-	def new(*args, **kwargs):
-		try:
-			func(*args, **kwargs)
-		finally:
-			final()
-	return new
 
 
 class GlobalPlugin(globalPluginHandler.GlobalPlugin):
@@ -68,7 +59,8 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		
 		self.settings_map = {
 			"lang_from": "from", "lang_to": "into", "lang_swap": "swap", 
-			"copyTranslation": "copytranslatedtext", "autoSwap": "autoswap"
+			"copyTranslation": "copytranslatedtext", "autoSwap": "autoswap",
+			"dictation_lang": "dictationlang"
 		}
 		for prop, key in self.settings_map.items():
 			setattr(self.__class__, prop, property(
@@ -112,7 +104,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		threading.Thread(target=self._run_translation, args=(request_id, text, langFrom, langTo, langSwap), name=f"translation_{request_id}", daemon=True).start()
 
 	def _run_translation(self, request_id, text, langFrom, langTo, langSwap):
-		translator = Translator(langFrom, langTo, text, langSwap)
+		translator = Translator(langFrom, langTo, text, langSwap, conf=self.addonConf)
 		translator.start()
 		translator.join()
 		
@@ -167,7 +159,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	@scriptHandler.script(description=_("Toggle voice typing (dictation) to type directly into an edit box."))
 	def script_toggleVoiceDictation(self, gesture):
 		self._is_dictation_mode = True
-		self._voiceManager.recognition_lang = "auto"
+		self._voiceManager.recognition_lang = self.dictation_lang if self.dictation_lang != "auto" else "en"
 		if not self._voiceManager.is_recording():
 			# Capture the target window handle NOW before NVDA shifts focus on stop gesture
 			import controlTypes

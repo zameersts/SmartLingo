@@ -64,6 +64,7 @@ class SmartLingoSettingsPanel(SettingsPanel):
 			into_choices.remove(auto_name)
 		self._intoChoice = helper.addLabeledControl(_("Target language:"), wx.Choice, choices=into_choices)
 		self._swapChoice = helper.addLabeledControl(_("Language for swapping (if Source is Auto):"), wx.Choice, choices=into_choices)
+		self._dictationChoice = helper.addLabeledControl(_("Voice Dictation language:"), wx.Choice, choices=from_choices)
 		
 		# Toggles
 		self.autoSwapChk = helper.addItem(wx.CheckBox(self, label=_("Activate auto-swap if recognized source is target")))
@@ -90,6 +91,7 @@ class SmartLingoSettingsPanel(SettingsPanel):
 		self._fromChoice.SetStringSelection(self.getDisplayName(self.addonConf.get('from', 'auto')))
 		self._intoChoice.SetStringSelection(self.getDisplayName(self.addonConf.get('into', 'en')))
 		self._swapChoice.SetStringSelection(self.getDisplayName(self.addonConf.get('swap', 'ur_roman')))
+		self._dictationChoice.SetStringSelection(self.getDisplayName(self.addonConf.get('dictationlang', 'en')))
 
 	def prepareChoices(self):
 		"""
@@ -136,6 +138,7 @@ class SmartLingoSettingsPanel(SettingsPanel):
 		self.addonConf['from'] = langslist.get(self._fromChoice.GetStringSelection(), 'auto')
 		self.addonConf['into'] = langslist.get(self._intoChoice.GetStringSelection(), 'en')
 		self.addonConf['swap'] = langslist.get(self._swapChoice.GetStringSelection(), 'ur_roman')
+		self.addonConf['dictationlang'] = langslist.get(self._dictationChoice.GetStringSelection(), 'en')
 		self.addonConf['autoswap'] = self.autoSwapChk.GetValue()
 		self.addonConf['copytranslatedtext'] = self.copyTranslationChk.GetValue()
 		self.addonConf['enablechat'] = self.enableChatChk.GetValue()

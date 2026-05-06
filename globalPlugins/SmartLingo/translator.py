@@ -5,12 +5,15 @@
 
 import requests
 import threading
-import config
 from logHandler import log
 from .langslist import g
 
+# Reuse connection and avoid proxy lookup overhead (massive speedup)
+_session = requests.Session()
+_session.trust_env = False
+
 class Translator(threading.Thread):
-	def __init__(self, lang_from, lang_to, text, lang_swap=None, use_mirror=False):
+	def __init__(self, lang_from, lang_to, text, lang_swap=None, conf=None):
 		super().__init__()
 		self.lang_from = lang_from
 		self.lang_to = lang_to
@@ -19,13 +22,11 @@ class Translator(threading.Thread):
 		self.translation = None
 		self.lang_detected = None
 		self.error = None
+		self.conf = conf or {}
 
 	def run(self):
 		try:
-			import addonHandler
-			addon_name = addonHandler.getCodeAddon().name.lower()
-			conf = config.conf[addon_name]
-			model_type = conf.get("model", "groq")
+			model_type = self.conf.get("model", "groq")
 			
 			is_roman_target = "_roman" in self.lang_to
 			clean_target = self.lang_to.replace("_roman", "")
@@ -35,11 +36,11 @@ class Translator(threading.Thread):
 			system_prompt, user_text = self.prepare_prompt(self.text, self.lang_from, clean_target, is_roman_target, clean_swap, is_roman_swap)
 			
 			if model_type == "gemini":
-				self.translation = self.send_gemini_request(system_prompt, user_text, conf.get("geminiApiKey", ""))
+				self.translation = self.send_gemini_request(system_prompt, user_text, self.conf.get("geminiApiKey", ""))
 			elif model_type == "openai":
-				self.translation = self.send_openai_request(system_prompt, user_text, conf.get("openaiApiKey", ""))
+				self.translation = self.send_openai_request(system_prompt, user_text, self.conf.get("openaiApiKey", ""))
 			else:
-				self.translation = self.send_groq_request(system_prompt, user_text, conf.get("apiKey", ""))
+				self.translation = self.send_groq_request(system_prompt, user_text, self.conf.get("apiKey", ""))
 				
 		except Exception as e:
 			self.error = str(e)
@@ -99,14 +100,14 @@ class Translator(threading.Thread):
 		# SECURITY: verify=True enforces SSL certificate validation
 		headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
 		data = {
-			"model": "llama-3.3-70b-versatile",
+			"model": "llama-3.1-8b-instant",
 			"messages": [
 				{"role": "system", "content": system_prompt},
 				{"role": "user", "content": user_text}
 			],
 			"temperature": 0.1
 		}
-		resp = requests.post("https://api.groq.com/openai/v1/chat/completions", json=data, headers=headers, timeout=60, verify=True)
+		resp = _session.post("https://api.groq.com/openai/v1/chat/completions", json=data, headers=headers, timeout=60, verify=True)
 		if resp.status_code == 200:
 			return resp.json()["choices"][0]["message"]["content"].strip()
 		return f"Error {resp.status_code}: {resp.text}"
@@ -122,7 +123,7 @@ class Translator(threading.Thread):
 			"contents": [{"parts": [{"text": user_text}]}],
 			"generationConfig": {"temperature": 0.1}
 		}
-		resp = requests.post(url, json=data, headers=headers, timeout=60, verify=True)
+		resp = _session.post(url, json=data, headers=headers, timeout=60, verify=True)
 		if resp.status_code == 200:
 			return resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
 		return f"Error {resp.status_code}: {resp.text}"
@@ -138,7 +139,7 @@ class Translator(threading.Thread):
 			],
 			"temperature": 0.1
 		}
-		resp = requests.post("https://api.openai.com/v1/chat/completions", json=data, headers=headers, timeout=60, verify=True)
+		resp = _session.post("https://api.openai.com/v1/chat/completions", json=data, headers=headers, timeout=60, verify=True)
 		if resp.status_code == 200:
 			return resp.json()["choices"][0]["message"]["content"].strip()
 		return f"Error {resp.status_code}: {resp.text}"

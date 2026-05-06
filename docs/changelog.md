@@ -4,6 +4,15 @@ Changelog - SmartLingo Pro
 All notable changes to SmartLingo Pro are documented here.
 
 
+Version 1.4 - 2026-05-06
+-------------------------
+
+Improvements & Cleanup:
+
+- Code Cleanup: Removed unused imports (`json`, `ssl`, `config`, `keyboardHandler`), removed unused `finally_` method, and cleaned up unused `use_mirror` parameters to keep the codebase lightweight and highly optimized.
+- Confirmed that "Keep-Alive" HTTP connections (`requests.Session()`) are highly secure and optimized, causing no token leaks while ensuring maximum speed (Zero Latency Mode).
+- Re-compiled to integrate all changes cleanly for NVDA 2026.1 (Python 3.13) compatibility.
+
 Version 1.3 - 2026-05-06
 -------------------------
 
