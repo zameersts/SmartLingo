@@ -1,5 +1,7 @@
 # translator.py
 # AI backend for SmartLingo addon
+# Security: User text is sent only to the user's chosen AI provider via their own API key.
+# No data is logged, stored, or shared with any third party by this addon.
 
 import requests
 import threading
@@ -51,7 +53,7 @@ class Translator(threading.Thread):
 		target_script = "Roman script (Latin letters)" if is_roman else "original script"
 		swap_script = "Roman script (Latin letters)" if is_roman_swap else "original script"
 		
-		system = "You are a professional universal translator.\n\n"
+		system = "You are a professional universal translator specialized in Pakistani Urdu and regional languages.\n\n"
 		
 		if lang_from == "auto" and swap_lang:
 			system += "DECISION LOGIC:\n"
@@ -67,10 +69,25 @@ class Translator(threading.Thread):
 		system += "- DO NOT include explanations, notes, or original text.\n"
 		
 		# Linguistic Quality Rules for Urdu/Hindi/Bengali
-		if any(word in (target_name + swap_name) for word in ["Urdu", "Hindi", "Bengali"]):
-			if "Urdu" in (target_name + swap_name):
-				system += "- URDU VOCABULARY: Use authentic Urdu vocabulary from Perso-Arabic roots. Avoid Sanskritized Hindi words (e.g., use 'shukriya' not 'dhanyavad').\n"
+		combined_names = (target_name + " " + swap_name).lower()
+		if any(word in combined_names for word in ["urdu", "hindi", "bengali"]):
+			if "urdu" in combined_names:
+				system += "- PAKISTANI URDU STANDARD: Use authentic Pakistani Urdu vocabulary (Perso-Arabic roots). Avoid Sanskritized Hindi words (e.g., use 'Wazir-e-Azam' not 'Pradhan Mantri', 'shukriya' not 'dhanyavad').\n"
+				if is_roman or is_roman_swap:
+					system += "- ROMAN URDU STYLE: Use standard Pakistani Romanization (e.g., 'hain' instead of 'h', 'hoon' instead of 'hu', 'kaise' instead of 'kese', 'raha' instead of 'rha').\n"
 		
+		# Examples to anchor the AI's behavior
+		system += "\nEXAMPLES:\n"
+		if "urdu" in target_name.lower():
+			if is_roman:
+				system += "- Input: \"What is your name?\" -> Output: \"Aap ka naam kya hai?\"\n"
+				system += "- Input: \"I am going home.\" -> Output: \"Main ghar ja raha hoon.\"\n"
+				system += "- Input: \"شکریہ\" -> Output: \"Shukriya\"\n"
+			else:
+				system += "- Input: \"What is your name?\" -> Output: \"آپ کا نام کیا ہے؟\"\n"
+				system += "- Input: \"I am going home.\" -> Output: \"میں گھر جا رہا ہوں۔\"\n"
+				system += "- Input: \"dhanyavad\" -> Output: \"شکریہ\"\n"
+
 		user_content = f"Text to translate:\n{text}"
 		return system, user_content
 
@@ -79,6 +96,7 @@ class Translator(threading.Thread):
 
 	def send_groq_request(self, system_prompt, user_text, api_key):
 		if not api_key: return "Error: Groq API key missing."
+		# SECURITY: verify=True enforces SSL certificate validation
 		headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
 		data = {
 			"model": "llama-3.3-70b-versatile",
@@ -88,13 +106,14 @@ class Translator(threading.Thread):
 			],
 			"temperature": 0.1
 		}
-		resp = requests.post("https://api.groq.com/openai/v1/chat/completions", json=data, headers=headers, timeout=60)
+		resp = requests.post("https://api.groq.com/openai/v1/chat/completions", json=data, headers=headers, timeout=60, verify=True)
 		if resp.status_code == 200:
 			return resp.json()["choices"][0]["message"]["content"].strip()
 		return f"Error {resp.status_code}: {resp.text}"
 
 	def send_gemini_request(self, system_prompt, user_text, api_key):
 		if not api_key: return "Error: Gemini API key missing."
+		# SECURITY: verify=True enforces SSL certificate validation
 		# Using Gemini 2.0 Flash for better system instruction support
 		url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
 		headers = {"Content-Type": "application/json"}
@@ -103,7 +122,7 @@ class Translator(threading.Thread):
 			"contents": [{"parts": [{"text": user_text}]}],
 			"generationConfig": {"temperature": 0.1}
 		}
-		resp = requests.post(url, json=data, headers=headers, timeout=60)
+		resp = requests.post(url, json=data, headers=headers, timeout=60, verify=True)
 		if resp.status_code == 200:
 			return resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
 		return f"Error {resp.status_code}: {resp.text}"
@@ -119,7 +138,7 @@ class Translator(threading.Thread):
 			],
 			"temperature": 0.1
 		}
-		resp = requests.post("https://api.openai.com/v1/chat/completions", json=data, headers=headers, timeout=60)
+		resp = requests.post("https://api.openai.com/v1/chat/completions", json=data, headers=headers, timeout=60, verify=True)
 		if resp.status_code == 200:
 			return resp.json()["choices"][0]["message"]["content"].strip()
 		return f"Error {resp.status_code}: {resp.text}"

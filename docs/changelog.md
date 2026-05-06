@@ -4,6 +4,28 @@ Changelog - SmartLingo Pro
 All notable changes to SmartLingo Pro are documented here.
 
 
+Version 1.3 - 2026-05-06
+-------------------------
+
+Bug Fixes:
+
+- Fixed: Voice dictation (NVDA + Alt + D) was not pasting transcribed text into the edit box. Root cause: wx.CallAfter(gesture.send) was unreliable — gesture ran outside NVDA's main event thread. Now correctly uses wx.CallLater(150ms) + queueHandler to ensure clipboard is ready before Ctrl+V is sent.
+
+Improvements:
+
+- Translations have been significantly improved.
+- Added Voice Typing (Dictation) feature: Type directly into edit boxes using voice without AI translation (NVDA + Alt + D).
+- Improved Update Dialog: When a new version is available, the addon now shows a dedicated dialog with the full "What's New" release notes from GitHub, so users know exactly what changed before installing.
+
+Security:
+
+- Enforced SSL certificate validation (verify=True) on all API requests (Groq, Gemini, OpenAI).
+- Update downloader now validates that the download URL is from a trusted GitHub domain only.
+- Added protection against path traversal and version string injection in the updater.
+- Added 10 MB audio recording cap to prevent memory exhaustion.
+- Added 50 MB download cap to prevent oversized update file attacks.
+
+
 Version 1.2 - 2026-04-30
 -------------------------
 

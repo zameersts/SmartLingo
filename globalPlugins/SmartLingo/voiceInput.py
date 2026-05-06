@@ -1,5 +1,6 @@
 # voiceInput.py
 # Clean voice input for SmartLingo
+# Security: Audio is transcribed via user's own API key only. No data stored locally. SSL enforced.
 
 import os
 import sys
@@ -29,6 +30,7 @@ except ImportError:
 _SAMPLE_RATE = 16000
 _CHANNELS = 1
 _CHUNK_SIZE = 1024
+_MAX_AUDIO_BYTES = 10 * 1024 * 1024  # SECURITY: 10 MB cap — ~5 min of audio, prevents memory exhaustion
 
 class VoiceInputManager:
 	def __init__(self, on_text_ready):
@@ -98,6 +100,11 @@ class VoiceInputManager:
 				try:
 					data = stream.read(_CHUNK_SIZE, exception_on_overflow=False)
 					frames.append(data)
+					# SECURITY: Enforce audio size cap to prevent memory exhaustion
+					if sum(len(f) for f in frames) > _MAX_AUDIO_BYTES:
+						log.warning("SmartLingo: Audio size limit reached (10 MB). Stopping recording.")
+						queueHandler.queueFunction(queueHandler.eventQueue, ui.message, _("Recording limit reached. Stopping."))
+						break
 				except Exception as e:
 					log.error(f"SmartLingo: Stream read error: {e}")
 					break
@@ -131,11 +138,9 @@ class VoiceInputManager:
 
 	def transcribe(self, path, lang):
 		"""
-		FIX: Pehle Gemini key hone par bhi voice kaam nahi karta tha kyunki
-		Gemini ka koi STT endpoint nahi tha aur error message confusing tha.
-		Ab clearly check karta hai aur sahi error message deta hai.
-		Priority: Groq Whisper > OpenAI Whisper
-		Gemini STT support nahi karta, isliye uske liye clear message.
+		Transcribes audio using the available API key.
+		Priority: Groq Whisper > OpenAI Whisper.
+		Gemini does not support STT, so a clear error message is shown if only a Gemini key is provided.
 		"""
 		groq_key = self.api_keys.get("groq")
 		if groq_key:
@@ -149,7 +154,7 @@ class VoiceInputManager:
 			if text:
 				return text
 
-		# FIX: Agar sirf Gemini key hai to samajhdar error message
+		# If only a Gemini key is provided, show a clear error — Gemini does not support STT
 		gemini_key = self.api_keys.get("gemini")
 		if gemini_key and not groq_key and not openai_key:
 			log.warning("SmartLingo: Gemini does not support voice input (STT). Please add a Groq or OpenAI API key for voice.")
@@ -175,7 +180,7 @@ class VoiceInputManager:
 				if iso_lang:
 					data["language"] = iso_lang
 				
-				resp = requests.post(url, headers=headers, files=files, data=data, timeout=30)
+				resp = requests.post(url, headers=headers, files=files, data=data, timeout=30, verify=True)
 				if resp.status_code == 200:
 					return resp.json().get("text")
 				log.error(f"SmartLingo: Groq STT error {resp.status_code}: {resp.text}")
@@ -195,7 +200,7 @@ class VoiceInputManager:
 				if iso_lang:
 					data["language"] = iso_lang
 				
-				resp = requests.post(url, headers=headers, files=files, data=data, timeout=30)
+				resp = requests.post(url, headers=headers, files=files, data=data, timeout=30, verify=True)
 				if resp.status_code == 200:
 					return resp.json().get("text")
 				log.error(f"SmartLingo: OpenAI STT error {resp.status_code}: {resp.text}")

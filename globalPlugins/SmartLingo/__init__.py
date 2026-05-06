@@ -12,6 +12,7 @@ import threading
 import ui
 import wx
 import tones
+import keyboardHandler
 from functools import wraps
 from .interface import SmartLingoSettingsPanel
 from .langslist import g
@@ -60,6 +61,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		self.addonConf = config.conf[addonName]
 		self.lastTranslation = None
 		self._last_request_id = 0
+		self._is_dictation_mode = False
 		
 		SmartLingoSettingsPanel.addonConf = self.addonConf
 		gui.settingsDialogs.NVDASettingsDialog.categoryClasses.append(SmartLingoSettingsPanel)
@@ -149,9 +151,10 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
 	@scriptHandler.script(description=_("Toggle voice input for AI translation."))
 	def script_toggleVoiceInput(self, gesture):
+		self._is_dictation_mode = False
 		self._voiceManager.recognition_lang = self.lang_from
 		if not self._voiceManager.is_recording():
-			ui.message(_("Recording started..."))
+			ui.message(_("Recording started for translation..."))
 			
 		# Pass api keys to manager
 		keys = {
@@ -161,8 +164,49 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		}
 		self._voiceManager.toggle(api_keys=keys)
 
+	@scriptHandler.script(description=_("Toggle voice typing (dictation) to type directly into an edit box."))
+	def script_toggleVoiceDictation(self, gesture):
+		self._is_dictation_mode = True
+		self._voiceManager.recognition_lang = "auto"
+		if not self._voiceManager.is_recording():
+			# Capture the target window handle NOW before NVDA shifts focus on stop gesture
+			import controlTypes
+			focus = api.getFocusObject()
+			if focus and controlTypes.State.EDITABLE in focus.states:
+				self._dictation_hwnd = getattr(focus, 'windowHandle', None)
+			else:
+				self._dictation_hwnd = None
+			ui.message(_("Recording started for typing..."))
+		keys = {
+			"groq": self.addonConf.get("apiKey"),
+			"openai": self.addonConf.get("openaiApiKey"),
+			"gemini": self.addonConf.get("geminiApiKey"),
+		}
+		self._voiceManager.toggle(api_keys=keys)
+
 	def _onVoiceText(self, text):
-		self.do_translate(text)
+		if getattr(self, "_is_dictation_mode", False):
+			# Announce what was transcribed so user can confirm API is working
+			ui.message(text)
+			# Copy transcribed text to clipboard
+			api.copyToClip(text)
+			hwnd = getattr(self, '_dictation_hwnd', None)
+
+			def _paste():
+				import ctypes
+				KEYEVENTF_KEYUP = 0x0002
+				# Restore the original edit window to foreground
+				if hwnd:
+					ctypes.windll.user32.SetForegroundWindow(hwnd)
+				# Raw Windows API Ctrl+V — bypasses NVDA input pipeline entirely
+				ctypes.windll.user32.keybd_event(0x11, 0, 0, 0)           # Ctrl down
+				ctypes.windll.user32.keybd_event(0x56, 0, 0, 0)           # V down
+				ctypes.windll.user32.keybd_event(0x56, 0, KEYEVENTF_KEYUP, 0)  # V up
+				ctypes.windll.user32.keybd_event(0x11, 0, KEYEVENTF_KEYUP, 0)  # Ctrl up
+
+			wx.CallLater(300, _paste)
+		else:
+			self.do_translate(text)
 
 	@scriptHandler.script(description=_("Cancel ongoing recording or translation."))
 	def script_cancel(self, gesture):
@@ -176,7 +220,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 			ui.message(_("Nothing to cancel."))
 
 	def _is_translating(self):
-		"""Check karo ke koi translation background mein chal rahi hai ya nahi."""
+		"""Returns True if a translation request is currently running in the background."""
 		import threading
 		for thread in threading.enumerate():
 			if thread.name == f"translation_{self._last_request_id}" and thread.is_alive():
@@ -202,6 +246,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	__gestures = {
 		"kb:NVDA+alt+t": "translateClipboardText",
 		"kb:NVDA+alt+v": "toggleVoiceInput",
+		"kb:NVDA+alt+d": "toggleVoiceDictation",
 		"kb:NVDA+alt+c": "cancel",
 		"kb:NVDA+alt+s": "swapLanguages",
 		"kb:NVDA+alt+l": "showSettings",

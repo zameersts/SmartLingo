@@ -105,8 +105,8 @@ class SmartLingoSettingsPanel(SettingsPanel):
 
 	def getDisplayName(self, lang_code):
 		"""
-		Lang code se display name nikalta hai g() function use karke.
-		Pehle getDictKey() wrong fallback return karta tha.
+		Returns the display name for a given language code using the g() function.
+		Previously getDictKey() returned an incorrect fallback value.
 		"""
 		name = lngModule.g(lang_code)
 		if name in langslist:
@@ -132,7 +132,7 @@ class SmartLingoSettingsPanel(SettingsPanel):
 		self.addonConf['apiKey'] = self.apiKeyField.GetValue()
 		self.addonConf['geminiApiKey'] = self.geminiKeyField.GetValue()
 		self.addonConf['openaiApiKey'] = self.openaiKeyField.GetValue()
-		# FIX: display name se lang code nikalna - .get() use karo crash se bachne ke liye
+		# Map display name back to language code using .get() to avoid crashes on unknown names
 		self.addonConf['from'] = langslist.get(self._fromChoice.GetStringSelection(), 'auto')
 		self.addonConf['into'] = langslist.get(self._intoChoice.GetStringSelection(), 'en')
 		self.addonConf['swap'] = langslist.get(self._swapChoice.GetStringSelection(), 'ur_roman')
