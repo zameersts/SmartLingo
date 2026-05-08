@@ -57,11 +57,10 @@ class Translator(threading.Thread):
 		system = "You are a professional universal translator specialized in Pakistani Urdu and regional languages.\n\n"
 		
 		if lang_from == "auto" and swap_lang:
-			system += "DECISION LOGIC:\n"
-			system += f"1. Detect the language of the source text.\n"
-			system += f"2. If the detected language is {target_name}, translate the text into {swap_name} (using {swap_script}).\n"
-			system += f"3. For ANY other language (including Urdu, English, Hindi, etc.), translate the text into {target_name} (using {target_script}).\n"
-			system += f"The priority is always {target_name} unless the input is already {target_name}.\n"
+			system += "AUTO-SWAP MODE:\n"
+			system += f"- Your primary target is {target_name}. However, if the input is already in {target_name}, you MUST translate it into {swap_name} ({swap_script}) instead.\n"
+			system += f"- If the input is in {swap_name} or ANY other language, translate it into {target_name} ({target_script}).\n"
+			system += "- ALWAYS detect the language first and then choose the destination based on these two rules.\n"
 		else:
 			system += f"TASK: Translate the input text exclusively into {target_name} (using {target_script}).\n"
 
@@ -79,15 +78,20 @@ class Translator(threading.Thread):
 		
 		# Examples to anchor the AI's behavior
 		system += "\nEXAMPLES:\n"
-		if "urdu" in target_name.lower():
-			if is_roman:
-				system += "- Input: \"What is your name?\" -> Output: \"Aap ka naam kya hai?\"\n"
-				system += "- Input: \"I am going home.\" -> Output: \"Main ghar ja raha hoon.\"\n"
-				system += "- Input: \"شکریہ\" -> Output: \"Shukriya\"\n"
+		if "urdu" in combined_names:
+			# Provide Urdu examples if Urdu is involved (as target or swap)
+			is_auto = lang_from == "auto"
+			show_roman = is_roman or (is_auto and is_roman_swap)
+			
+			if show_roman:
+				system += f"- Input (English): \"How are you?\" -> Output: \"Aap kaise hain?\"\n"
+				system += f"- Input (Urdu): \"Main theek hoon.\" -> Output: \"I am fine.\"\n"
+				system += f"- Input (Script): \"شکریہ\" -> Output: \"Shukriya\"\n"
 			else:
-				system += "- Input: \"What is your name?\" -> Output: \"آپ کا نام کیا ہے؟\"\n"
-				system += "- Input: \"I am going home.\" -> Output: \"میں گھر جا رہا ہوں۔\"\n"
-				system += "- Input: \"dhanyavad\" -> Output: \"شکریہ\"\n"
+				system += f"- Input (English): \"How are you?\" -> Output: \"آپ کیسے ہیں؟\"\n"
+				system += f"- Input (Urdu): \"Main theek hoon.\" -> Output: \"میں ٹھیک ہوں۔\"\n"
+				system += f"- Input (Other): \"Gracias\" -> Output: \"Shukriya\" (if swapping to Urdu) or \"Thank you\" (if target is English)\n"
+				system += f"- Input (Urdu): \"آپ کا نام کیا ہے؟\" -> Output: \"What is your name?\"\n"
 
 		user_content = f"Text to translate:\n{text}"
 		return system, user_content

@@ -1,5 +1,5 @@
 $src = 'c:\my\SmartLingo'
-$out = 'c:\my\SmartLingo\SmartLingo-1.4.nvda-addon'
+$out = 'c:\my\SmartLingo\SmartLingo-1.5.nvda-addon'
 
 # Agar purani file hai to delete karo
 if (Test-Path $out) { Remove-Item $out -Force }

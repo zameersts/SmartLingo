@@ -2,8 +2,7 @@
 # SmartLingo GitHub Updater
 # Security: All downloads validated against GitHub domain. No user data collected.
 
-import urllib.request
-import urllib.error
+import requests
 import json
 import os
 import tempfile
@@ -36,17 +35,7 @@ def get_current_version():
 def check_for_update(background=False):
 	threading.Thread(target=_check_update_thread, args=(background,), daemon=True).start()
 
-def _create_ssl_context():
-	"""
-	Creates an SSL context using the system's trusted certificates.
-	SSL certificate verification is enabled by default (check_hostname and verify_mode are ON).
-	"""
-	try:
-		ctx = ssl.create_default_context()
-		# check_hostname and verify_mode are correct by default (verification ON)
-		return ctx
-	except Exception:
-		return None
+
 
 def _parse_version(v):
 	"""
@@ -71,12 +60,9 @@ def _check_update_thread(background):
 			"Cache-Control": "no-cache",
 			"Pragma": "no-cache"
 		}
-		req = urllib.request.Request(url_with_ts, headers=headers)
-		
-		ctx = _create_ssl_context()
-		
-		with urllib.request.urlopen(req, timeout=10, context=ctx) as response:
-			data = json.loads(response.read().decode('utf-8'))
+		resp = requests.get(url_with_ts, headers=headers, timeout=10)
+		resp.raise_for_status()
+		data = resp.json()
 			
 		latest_version = data.get("tag_name", "").lstrip("v")
 		current_version = get_current_version().lstrip("v")
@@ -110,17 +96,17 @@ def _check_update_thread(background):
 					_("You are already using the latest version of SmartLingo."),
 					_("SmartLingo Updater"), wx.OK | wx.ICON_INFORMATION)
 
-	except urllib.error.HTTPError as e:
+	except requests.exceptions.HTTPError as e:
 		if not background:
-			if e.code == 403:
+			if e.response.status_code == 403:
 				msg = _("GitHub API rate limit exceeded. Please try again later.")
 			else:
 				msg = _("Failed to check for updates: {}").format(e)
 			wx.CallAfter(gui.messageBox, msg, _("SmartLingo Updater Error"), wx.OK | wx.ICON_ERROR)
-	except ssl.SSLError as e:
+	except requests.exceptions.RequestException as e:
 		if not background:
 			wx.CallAfter(gui.messageBox,
-				_("SSL error while checking for updates: {}").format(e),
+				_("Network error while checking for updates: {}").format(e),
 				_("SmartLingo Updater Error"), wx.OK | wx.ICON_ERROR)
 	except Exception as e:
 		if not background:
@@ -286,21 +272,18 @@ def _download_and_install_thread(url, version):
 			"User-Agent": "NVDA-SmartLingo-Updater",
 			"Cache-Control": "no-cache"
 		}
-		req = urllib.request.Request(url, headers=headers)
-		ctx = _create_ssl_context()
+		resp = requests.get(url, headers=headers, timeout=30, stream=True)
+		resp.raise_for_status()
 
-		with urllib.request.urlopen(req, timeout=30, context=ctx) as response:
-			# SECURITY: Check Content-Length before downloading
-			content_length = response.headers.get("Content-Length")
-			if content_length and int(content_length) > _MAX_DOWNLOAD_SIZE_BYTES:
-				raise ValueError("Download file is too large (exceeds 50 MB limit).")
+		# SECURITY: Check Content-Length before downloading
+		content_length = resp.headers.get("Content-Length")
+		if content_length and int(content_length) > _MAX_DOWNLOAD_SIZE_BYTES:
+			raise ValueError("Download file is too large (exceeds 50 MB limit).")
 
-			# SECURITY: Read in chunks and enforce size cap
-			data = b""
-			while True:
-				chunk = response.read(65536)  # 64 KB chunks
-				if not chunk:
-					break
+		# SECURITY: Read in chunks and enforce size cap
+		data = b""
+		for chunk in resp.iter_content(chunk_size=65536):
+			if chunk:
 				data += chunk
 				if len(data) > _MAX_DOWNLOAD_SIZE_BYTES:
 					raise ValueError("Download exceeded 50 MB limit. Aborting.")

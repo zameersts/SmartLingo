@@ -4,6 +4,18 @@ Changelog - SmartLingo Pro
 All notable changes to SmartLingo Pro are documented here.
 
 
+Version 1.5 - 2026-05-08
+-------------------------
+
+Improvements:
+
+- Improved Auto-Swap Logic: Refactored the AI system prompt to handle bidirectional language swapping (Target to Swap and Swap to Target) for better accuracy, especially for Urdu and Hindi.
+- Optimized Prompts: Added bidirectional Urdu translation examples to the AI backend to ensure consistent translation and prevent the AI from getting 'stuck' in one language.
+
+Bug Fixes & Security:
+
+- Fixed: Resolved an issue where some users experienced `SSL: CERTIFICATE_VERIFY_FAILED` errors during auto-updates. The updater now utilizes the `requests` library and its bundled CA certificates (`certifi`) instead of relying on the local Windows certificate store, ensuring secure and reliable updates for all users.
+
 Version 1.4 - 2026-05-06
 -------------------------
 
