@@ -1,5 +1,9 @@
 $src = 'c:\my\SmartLingo'
-$out = 'c:\my\SmartLingo\SmartLingo-1.5.nvda-addon'
+# Read version from manifest.ini dynamically
+$manifest = Get-Content (Join-Path $src "manifest.ini")
+$versionLine = $manifest | Select-String "^version\s*=" | Select-Object -First 1
+$version = $versionLine.ToString().Split('=')[1].Trim().Replace('"', '').Replace("'", "")
+$out = Join-Path $src "SmartLingo-$version.nvda-addon"
 
 # Agar purani file hai to delete karo
 if (Test-Path $out) { Remove-Item $out -Force }

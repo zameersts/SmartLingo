@@ -73,9 +73,6 @@ class SmartLingoSettingsPanel(SettingsPanel):
 		self.copyTranslationChk = helper.addItem(wx.CheckBox(self, label=_("Copy translation result to clipboard")))
 		self.copyTranslationChk.SetValue(self.addonConf.get('copytranslatedtext', True))
 
-		self.enableChatChk = helper.addItem(wx.CheckBox(self, label=_("Enable Chat Window for translations")))
-		self.enableChatChk.SetValue(self.addonConf.get('enablechat', False))
-
 		# Update Settings
 		helper.addItem(wx.StaticLine(self))
 		self.autoUpdateChk = helper.addItem(wx.CheckBox(self, label=_("Automatically check for updates on startup")))
@@ -141,5 +138,4 @@ class SmartLingoSettingsPanel(SettingsPanel):
 		self.addonConf['dictationlang'] = langslist.get(self._dictationChoice.GetStringSelection(), 'en')
 		self.addonConf['autoswap'] = self.autoSwapChk.GetValue()
 		self.addonConf['copytranslatedtext'] = self.copyTranslationChk.GetValue()
-		self.addonConf['enablechat'] = self.enableChatChk.GetValue()
 		self.addonConf['autoupdate'] = self.autoUpdateChk.GetValue()
