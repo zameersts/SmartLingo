@@ -9,9 +9,9 @@ Version 1.6 - 2026-05-10
 
 Major Features:
 
-- **Standalone AI Assistant:** SmartLingo is now more than just a translator! You can now open a dedicated AI Assistant window anytime to chat, ask questions, or refine your translations.
+- **Standalone AI Assistant:** SmartLingo is now more than just a translator! You can now open a dedicated AI Assistant window anytime to chat, ask questions, or brainstorm ideas.
 - **New Shortcut (NVDA + Alt + Enter):** Instantly open the AI Assistant window from anywhere.
-- **Conversational History (Memory):** The AI now maintains context. You can ask follow-up questions (e.g., "Make it simpler" or "Explain the grammar") and the AI will remember the previous messages in the current session.
+- **Conversational History (Memory):** The AI now maintains context. You can ask follow-up questions and hold a continuous conversation, and the AI will remember the previous messages in the current session.
 - **Improved Chat UI/UX:**
   - Removed the "Enable Chat Window" checkbox from settings; the Assistant is now purely shortcut-driven.
   - Added "SmartLingo is typing..." status indicator (visual and spoken by NVDA).

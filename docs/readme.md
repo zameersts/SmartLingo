@@ -10,7 +10,7 @@ We built this addon so you wouldn't have to constantly switch windows or juggle 
 - **Speak to Translate:** Press a hotkey, speak into your microphone, and we'll translate your voice!
 - **Smart Language Detection:** You don't even need to tell it what language you're copying—it'll figure it out automatically.
 - **Quick Language Swap:** Easily switch between the language you're translating *from* and the one you're translating *to*. It even does this automatically if it detects you're already reading in your target language!
-- **Standalone AI Assistant:** SmartLingo is now your personal AI companion. Open the chat window anytime to ask questions, write content, or refine translations with full conversation context.
+- **Standalone AI Assistant:** SmartLingo is now your personal AI companion. Open the chat window anytime to ask questions, brainstorm ideas, or hold a natural conversation with full context.
 - **Auto-Copy:** As soon as a translation is ready, we copy it to your clipboard so you can paste it anywhere.
 - **Automatic Updates:** Don't worry about missing new features! SmartLingo checks for new versions on GitHub and updates itself.
 - **Pick your AI:** You're not locked into one system. Choose between Google Gemini, OpenAI, or Groq based on what you prefer.
@@ -43,7 +43,7 @@ We've tried to make the shortcuts as easy to remember as possible:
 - **NVDA + Alt + S** : Swap your source and target languages around.
 - **NVDA + Alt + A** : Check what languages you are currently translating between.
 - **NVDA + Alt + L** : Jump straight into the SmartLingo settings.
-- **NVDA + Alt + Enter** : Open the Standalone AI Assistant chat window.
+- **NVDA + Alt + Enter** : Open the Standalone AI Assistant chat window for a natural conversation.
 
 ## ⚙️ Customizing SmartLingo
 

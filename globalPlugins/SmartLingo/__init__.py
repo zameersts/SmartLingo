@@ -93,7 +93,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
 
 
-	def do_translate(self, text, is_follow_up=False):
+	def do_translate(self, text, is_follow_up=False, is_chat=False):
 		self._last_request_id += 1
 		request_id = self._last_request_id
 		
@@ -102,16 +102,16 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		langSwap = self.lang_swap if (langFrom == "auto" and self.autoSwap) else None
 		
 		# Reset history on fresh translation from outside the chat
-		if not is_follow_up:
+		if not is_follow_up and not is_chat:
 			self._chat_history = []
 			
-		threading.Thread(target=self._run_translation, args=(request_id, text, langFrom, langTo, langSwap, is_follow_up), name=f"translation_{request_id}", daemon=True).start()
+		threading.Thread(target=self._run_translation, args=(request_id, text, langFrom, langTo, langSwap, is_follow_up, is_chat), name=f"translation_{request_id}", daemon=True).start()
 
-	def _run_translation(self, request_id, text, langFrom, langTo, langSwap, is_follow_up):
-		use_chat = self.addonConf.get("enablechat", False) or is_follow_up
+	def _run_translation(self, request_id, text, langFrom, langTo, langSwap, is_follow_up, is_chat):
+		use_chat = self.addonConf.get("enablechat", False) or is_follow_up or is_chat
 		history = self._chat_history if use_chat else None
 		
-		translator = Translator(langFrom, langTo, text, langSwap, conf=self.addonConf, history=history)
+		translator = Translator(langFrom, langTo, text, langSwap, conf=self.addonConf, history=history, is_chat=is_chat or is_follow_up)
 		translator.start()
 		translator.join()
 		
@@ -145,7 +145,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
 	def do_translate_followup(self, text):
 		"""Callback for the chat window to continue conversation."""
-		self.do_translate(text, is_follow_up=True)
+		self.do_translate(text, is_follow_up=True, is_chat=True)
 
 	@scriptHandler.script(description=_("Opens SmartLingo AI Chat Assistant."))
 	def script_openChat(self, gesture):

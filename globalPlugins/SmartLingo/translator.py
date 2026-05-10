@@ -13,7 +13,7 @@ _session = requests.Session()
 _session.trust_env = False
 
 class Translator(threading.Thread):
-	def __init__(self, lang_from, lang_to, text, lang_swap=None, conf=None, history=None):
+	def __init__(self, lang_from, lang_to, text, lang_swap=None, conf=None, history=None, is_chat=False):
 		super().__init__()
 		self.lang_from = lang_from
 		self.lang_to = lang_to
@@ -24,6 +24,7 @@ class Translator(threading.Thread):
 		self.error = None
 		self.conf = conf or {}
 		self.history = history or [] # List of {"role": "user/assistant", "content": "..."}
+		self.is_chat = is_chat
 
 	def run(self):
 		try:
@@ -55,40 +56,40 @@ class Translator(threading.Thread):
 		target_script = "Roman script (Latin letters)" if is_roman else "original script"
 		swap_script = "Roman script (Latin letters)" if is_roman_swap else "original script"
 		
-		is_chat = len(self.history) > 0
+		system = "You are SmartLingo, a powerful and helpful AI Assistant. "
 		
-		system = "You are SmartLingo, a professional AI translator and linguistic assistant specializing in Pakistani Urdu and regional languages.\n\n"
-		
-		if is_chat:
-			system += "CHAT MODE:\n"
-			system += "- You are in a conversational mode. Maintain context from previous messages.\n"
-			system += "- Help the user with translations, language questions, or general assistance.\n"
-			system += f"- When translating, default to {target_name} ({target_script}) unless asked otherwise.\n"
-		elif lang_from == "auto" and swap_lang:
-			system += "AUTO-SWAP MODE:\n"
-			system += f"- Your primary target is {target_name}. However, if the input is already in {target_name}, you MUST translate it into {swap_name} ({swap_script}) instead.\n"
-			system += f"- If the input is in {swap_name} or ANY other language, translate it into {target_name} ({target_script}).\n"
-			system += "- ALWAYS detect the language first and then choose the destination based on these two rules.\n"
+		if self.is_chat:
+			system += "You are in CHAT MODE. Your goal is to be a standalone AI assistant for the user.\n"
+			system += "- Maintain context from previous messages.\n"
+			system += "- Answer questions, provide information, and hold a natural conversation.\n"
+			system += "- Only translate if the user explicitly asks for a translation.\n"
+			system += "- Be concise, professional, and friendly.\n"
 		else:
-			system += f"TASK: Translate the input text exclusively into {target_name} (using {target_script}).\n"
+			system += "You are a professional linguistic assistant specializing in Pakistani Urdu and regional languages.\n\n"
+			if lang_from == "auto" and swap_lang:
+				system += "AUTO-SWAP MODE:\n"
+				system += f"- Your primary target is {target_name}. However, if the input is already in {target_name}, you MUST translate it into {swap_name} ({swap_script}) instead.\n"
+				system += f"- If the input is in {swap_name} or ANY other language, translate it into {target_name} ({target_script}).\n"
+				system += "- ALWAYS detect the language first and then choose the destination based on these two rules.\n"
+			else:
+				system += f"TASK: Translate the input text exclusively into {target_name} (using {target_script}).\n"
 
 		system += "\nRULES:\n"
-		if not is_chat:
+		if not self.is_chat:
 			system += "- Return ONLY the translated text.\n"
 			system += "- DO NOT include explanations, notes, or original text.\n"
 		else:
-			system += "- Be helpful, concise, and professional.\n"
-			system += "- If the user asks for a translation, follow the linguistic quality rules below.\n"
+			system += "- Answer the user directly.\n"
 		
 		# Linguistic Quality Rules for Urdu/Hindi/Bengali
 		combined_names = (target_name + " " + swap_name).lower()
 		if any(word in combined_names for word in ["urdu", "hindi", "bengali"]):
 			if "urdu" in combined_names:
-				system += "- PAKISTANI URDU STANDARD: Use authentic Pakistani Urdu vocabulary (Perso-Arabic roots). Avoid Sanskritized Hindi words.\n"
+				system += "- PAKISTANI URDU STANDARD: If responding in Urdu, use authentic Pakistani Urdu vocabulary (Perso-Arabic roots). Avoid Sanskritized Hindi words.\n"
 				if is_roman or is_roman_swap:
 					system += "- ROMAN URDU STYLE: Use standard Pakistani Romanization (e.g., 'hain' instead of 'h', 'hoon' instead of 'hu', 'kaise' instead of 'kese').\n"
 		
-		if not is_chat:
+		if not self.is_chat:
 			# Examples for pure translation
 			system += "\nEXAMPLES:\n"
 			if "urdu" in combined_names:
