@@ -4,8 +4,23 @@ Changelog - SmartLingo Pro
 All notable changes to SmartLingo Pro are documented here.
 
 
-Version 1.5 - 2026-05-08
+Version 1.6 - 2026-05-10
 -------------------------
+
+Major Features:
+
+- **Standalone AI Assistant:** SmartLingo is now more than just a translator! You can now open a dedicated AI Assistant window anytime to chat, ask questions, or refine your translations.
+- **New Shortcut (NVDA + Alt + Enter):** Instantly open the AI Assistant window from anywhere.
+- **Conversational History (Memory):** The AI now maintains context. You can ask follow-up questions (e.g., "Make it simpler" or "Explain the grammar") and the AI will remember the previous messages in the current session.
+- **Improved Chat UI/UX:**
+  - Removed the "Enable Chat Window" checkbox from settings; the Assistant is now purely shortcut-driven.
+  - Added "SmartLingo is typing..." status indicator (visual and spoken by NVDA).
+  - Initial focus now lands on the input field for immediate typing.
+  - Added support for `Shift + Enter` to start new lines within the chat.
+  - Enhanced accessibility labels and focus management for a smoother NVDA experience.
+- **Context-Aware Prompting:** The AI now intelligently switches between strict translation mode and conversational assistant mode based on how the chat was initiated.
+
+Version 1.5 - 2026-05-08
 
 Improvements:
 
@@ -82,7 +97,7 @@ Initial Release
 - Voice Input: Record and translate speech using microphone (NVDA + Alt + V)
   - Supports Groq Whisper and OpenAI Whisper for speech recognition
 - Chat Window Mode: Conversational translation interface
-- Auto-Copy: Translation result copied to clipboard automatically
+- **Auto-copy:** Decide if you want every translation to be automatically copied to your clipboard.
 - NVDA Settings Panel: Fully integrated settings (NVDA + Alt + L)
 - Language Announcement: Announce current language pair (NVDA + Alt + A)
 - Automatic Updater: Check for new releases directly from GitHub on startup or manually from settings

@@ -34,7 +34,6 @@ confspec = {
 	"apiKey": "string(default=)",
 	"geminiApiKey": "string(default=)",
 	"openaiApiKey": "string(default=)",
-	"enablechat": "boolean(default=false)",
 	"autoupdate": "boolean(default=true)",
 	"dictationlang": "string(default=en)",
 }
@@ -53,6 +52,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		self.lastTranslation = None
 		self._last_request_id = 0
 		self._is_dictation_mode = False
+		self._chat_history = []
 		
 		SmartLingoSettingsPanel.addonConf = self.addonConf
 		gui.settingsDialogs.NVDASettingsDialog.categoryClasses.append(SmartLingoSettingsPanel)
@@ -93,7 +93,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
 
 
-	def do_translate(self, text):
+	def do_translate(self, text, is_follow_up=False):
 		self._last_request_id += 1
 		request_id = self._last_request_id
 		
@@ -101,10 +101,17 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		langTo = self.lang_to
 		langSwap = self.lang_swap if (langFrom == "auto" and self.autoSwap) else None
 		
-		threading.Thread(target=self._run_translation, args=(request_id, text, langFrom, langTo, langSwap), name=f"translation_{request_id}", daemon=True).start()
+		# Reset history on fresh translation from outside the chat
+		if not is_follow_up:
+			self._chat_history = []
+			
+		threading.Thread(target=self._run_translation, args=(request_id, text, langFrom, langTo, langSwap, is_follow_up), name=f"translation_{request_id}", daemon=True).start()
 
-	def _run_translation(self, request_id, text, langFrom, langTo, langSwap):
-		translator = Translator(langFrom, langTo, text, langSwap, conf=self.addonConf)
+	def _run_translation(self, request_id, text, langFrom, langTo, langSwap, is_follow_up):
+		use_chat = self.addonConf.get("enablechat", False) or is_follow_up
+		history = self._chat_history if use_chat else None
+		
+		translator = Translator(langFrom, langTo, text, langSwap, conf=self.addonConf, history=history)
 		translator.start()
 		translator.join()
 		
@@ -121,14 +128,31 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 			
 			self.lastTranslation = translator.translation
 			
-			use_chat = self.addonConf.get("enablechat", False)
-			if use_chat:
+			if is_follow_up:
+				# Store interaction in history (limit to last 20 for performance)
+				self._chat_history.append({"role": "user", "content": text})
+				self._chat_history.append({"role": "assistant", "content": translator.translation})
+				if len(self._chat_history) > 20:
+					self._chat_history = self._chat_history[-20:]
+				
 				import wx
-				wx.CallAfter(show_chat_window, self.do_translate, text, translator.translation)
+				wx.CallAfter(show_chat_window, self.do_translate_followup, text, translator.translation)
 			else:
+				# Normal translation behavior
 				ui.message(translator.translation)
 				if self.copyTranslation:
 					api.copyToClip(translator.translation)
+
+	def do_translate_followup(self, text):
+		"""Callback for the chat window to continue conversation."""
+		self.do_translate(text, is_follow_up=True)
+
+	@scriptHandler.script(description=_("Opens SmartLingo AI Chat Assistant."))
+	def script_openChat(self, gesture):
+		if self._voiceManager.is_recording():
+			ui.message(_("Cannot open chat while recording."))
+			return
+		wx.CallAfter(show_chat_window, self.do_translate_followup)
 
 	@scriptHandler.script(description=_("Swaps source and target languages."))
 	def script_swapLanguages(self, gesture):
@@ -243,4 +267,5 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		"kb:NVDA+alt+s": "swapLanguages",
 		"kb:NVDA+alt+l": "showSettings",
 		"kb:NVDA+alt+a": "announceLanguages",
+		"kb:NVDA+alt+enter": "openChat",
 	}
