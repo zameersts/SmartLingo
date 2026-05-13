@@ -13,7 +13,7 @@ We built this addon so you wouldn't have to constantly switch windows or juggle 
 - **Standalone AI Assistant:** SmartLingo is now your personal AI companion. Open the chat window anytime to ask questions, brainstorm ideas, or hold a natural conversation with full context.
 - **Auto-Copy:** As soon as a translation is ready, we copy it to your clipboard so you can paste it anywhere.
 - **Automatic Updates:** Don't worry about missing new features! SmartLingo checks for new versions on GitHub and updates itself.
-- **Pick your AI:** You're not locked into one system. Choose between Google Gemini, OpenAI, or Groq based on what you prefer.
+- **Pick your AI:** You're not locked into one system. Choose between Google Gemini or Groq based on what you prefer.
 
 ## 🛠️ What do you need to use it?
 
@@ -23,7 +23,6 @@ It's pretty simple to get started, but you will need a couple of things:
 3. **An API Key:** This is basically a password that lets the addon talk to the AI. You can get one for free:
    - **Groq** (Fast and completely free): [Get it here](https://console.groq.com)
    - **Google Gemini** (Has a great free tier): [Get it here](https://aistudio.google.com)
-   - **OpenAI** (Paid, but very powerful): [Get it here](https://platform.openai.com)
 4. *(Optional but recommended)* A microphone for voice input. The addon will help you install "PyAudio" the first time you try to use your voice.
 
 ## 🚀 How to Install
@@ -58,8 +57,14 @@ You can tweak how SmartLingo works by going to **NVDA Settings > SmartLingo Pro*
 
 Want to just talk? It's easy!
 - Press **NVDA + Alt + V**, say what you want to translate, and press the shortcut again to stop.
-- Note: Voice input requires a Groq or OpenAI API key. Gemini does not support speech recognition.
+- Note: Voice input requires a Groq API key. Gemini does not support speech recognition.
 - The first time you use voice, ensure PyAudio is available (included with the addon).
+
+## 🆕 What's New in 1.7?
+
+- **Get API Key Buttons:** Added convenient buttons in the settings panel to quickly open the websites for Groq and Gemini API keys.
+- **Removed OpenAI:** Removed ChatGPT/OpenAI support as it is no longer free.
+- **Fixed Voice Dictation:** Resolved an issue where voice dictation did not correctly support Roman Urdu script conversion.
 
 ## 🙌 Credits & Thanks
 

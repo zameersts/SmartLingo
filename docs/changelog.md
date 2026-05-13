@@ -3,6 +3,14 @@ Changelog - SmartLingo Pro
 
 All notable changes to SmartLingo Pro are documented here.
 
+Version 1.7 - 2026-05-14
+-------------------------
+
+Improvements:
+
+- **Added "Get API Key" Buttons:** The settings panel now features dedicated buttons to quickly open the Groq and Gemini API key dashboards, making setup much faster.
+- **Removed OpenAI (ChatGPT) Support:** Support for OpenAI has been removed as their API is no longer free. The addon now focuses on high-quality free providers (Groq and Gemini).
+- **Fixed Voice Dictation Roman Urdu Support:** Resolved an issue where voice dictation (NVDA + Alt + D) did not correctly support Roman Urdu script conversion.
 
 Version 1.6 - 2026-05-10
 -------------------------

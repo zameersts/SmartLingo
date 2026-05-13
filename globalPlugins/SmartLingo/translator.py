@@ -13,7 +13,7 @@ _session = requests.Session()
 _session.trust_env = False
 
 class Translator(threading.Thread):
-	def __init__(self, lang_from, lang_to, text, lang_swap=None, conf=None, history=None, is_chat=False):
+	def __init__(self, lang_from, lang_to, text, lang_swap=None, conf=None, history=None, is_chat=False, is_dictation=False):
 		super().__init__()
 		self.lang_from = lang_from
 		self.lang_to = lang_to
@@ -25,6 +25,7 @@ class Translator(threading.Thread):
 		self.conf = conf or {}
 		self.history = history or [] # List of {"role": "user/assistant", "content": "..."}
 		self.is_chat = is_chat
+		self.is_dictation = is_dictation
 
 	def run(self):
 		try:
@@ -39,8 +40,6 @@ class Translator(threading.Thread):
 			
 			if model_type == "gemini":
 				self.translation = self.send_gemini_request(system_prompt, user_text, self.conf.get("geminiApiKey", ""))
-			elif model_type == "openai":
-				self.translation = self.send_openai_request(system_prompt, user_text, self.conf.get("openaiApiKey", ""))
 			else:
 				self.translation = self.send_groq_request(system_prompt, user_text, self.conf.get("apiKey", ""))
 				
@@ -49,6 +48,11 @@ class Translator(threading.Thread):
 			log.error(f"SmartLingo: Translation error: {e}")
 
 	def prepare_prompt(self, text, lang_from, lang_to, is_roman, swap_lang=None, is_roman_swap=False):
+		if self.is_dictation:
+			target_name = g(lang_to)
+			system = f"Convert the following text to {target_name} script. If it's Urdu, use Roman Urdu (Latin script). DO NOT translate. If the text is already in the target script or another language, return it exactly as is. Output ONLY the converted text."
+			return system, text
+
 		# Get descriptive names (e.g. "Urdu", "Bengali")
 		target_name = g(lang_to)
 		swap_name = g(swap_lang) if swap_lang else ""
@@ -141,20 +145,4 @@ class Translator(threading.Thread):
 			return resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
 		return f"Error {resp.status_code}: {resp.text}"
 
-	def send_openai_request(self, system_prompt, user_text, api_key):
-		if not api_key: return "Error: OpenAI API key missing."
-		headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-		messages = [{"role": "system", "content": system_prompt}]
-		messages.extend(self.history)
-		messages.append({"role": "user", "content": user_text})
-		
-		data = {
-			"model": "gpt-4o-mini",
-			"messages": messages,
-			"temperature": 0.3 if self.history else 0.1
-		}
-		resp = _session.post("https://api.openai.com/v1/chat/completions", json=data, headers=headers, timeout=60, verify=True)
-		if resp.status_code == 200:
-			return resp.json()["choices"][0]["message"]["content"].strip()
-		return f"Error {resp.status_code}: {resp.text}"
 

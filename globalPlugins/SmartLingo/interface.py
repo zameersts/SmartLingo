@@ -4,6 +4,7 @@
 import wx
 import gui
 import gui.guiHelper
+import webbrowser
 from gui.settingsDialogs import SettingsPanel
 from .langslist import langslist
 from . import langslist as lngModule
@@ -21,26 +22,31 @@ class SmartLingoSettingsPanel(SettingsPanel):
 		
 		# AI Model Selection
 		helper.addItem(wx.StaticText(self, label=_("AI Configuration:")))
-		self.modelChoice = helper.addLabeledControl(_("Select AI Model:"), wx.Choice, choices=["Groq", "Gemini", "OpenAI"])
+		self.modelChoice = helper.addLabeledControl(_("Select AI Model:"), wx.Choice, choices=["Groq", "Gemini"])
 		model_val = self.addonConf.get("model", "groq").lower()
 		selection_idx = 0
 		if model_val == "gemini": selection_idx = 1
-		elif model_val == "openai": selection_idx = 2
 		self.modelChoice.SetSelection(selection_idx)
 		
 		# API Keys
-		def makeLabeledControl(labelStr, valueStr):
+		def makeLabeledControl(labelStr, valueStr, api_url=None):
 			sizer = wx.BoxSizer(wx.HORIZONTAL)
 			lbl = wx.StaticText(self, label=labelStr)
 			ctrl = wx.TextCtrl(self, value=valueStr, style=wx.TE_PASSWORD)
 			sizer.Add(lbl, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
 			sizer.Add(ctrl, 1, wx.ALL, 5)
-			helper.addItem(sizer)
-			return lbl, ctrl
 			
-		self.groqLabel, self.apiKeyField = makeLabeledControl(_("Groq API Key:"), self.addonConf.get("apiKey", ""))
-		self.geminiLabel, self.geminiKeyField = makeLabeledControl(_("Gemini API Key:"), self.addonConf.get("geminiApiKey", ""))
-		self.openaiLabel, self.openaiKeyField = makeLabeledControl(_("OpenAI API Key:"), self.addonConf.get("openaiApiKey", ""))
+			btn = None
+			if api_url:
+				btn = wx.Button(self, label=_("Get API Key"))
+				btn.Bind(wx.EVT_BUTTON, lambda e: webbrowser.open(api_url))
+				sizer.Add(btn, 0, wx.ALL, 5)
+				
+			helper.addItem(sizer)
+			return lbl, ctrl, btn
+			
+		self.groqLabel, self.apiKeyField, self.groqBtn = makeLabeledControl(_("Groq API Key:"), self.addonConf.get("apiKey", ""), "https://console.groq.com/keys")
+		self.geminiLabel, self.geminiKeyField, self.geminiBtn = makeLabeledControl(_("Gemini API Key:"), self.addonConf.get("geminiApiKey", ""), "https://aistudio.google.com/app/apikey")
 		
 		self.modelChoice.Bind(wx.EVT_CHOICE, self.onModelSwitch)
 		wx.CallAfter(self.onModelSwitch)
@@ -114,12 +120,17 @@ class SmartLingoSettingsPanel(SettingsPanel):
 
 	def onModelSwitch(self, event=None):
 		sel = self.modelChoice.GetStringSelection().lower()
-		self.groqLabel.Show(sel == "groq")
-		self.apiKeyField.Show(sel == "groq")
-		self.geminiLabel.Show(sel == "gemini")
-		self.geminiKeyField.Show(sel == "gemini")
-		self.openaiLabel.Show(sel == "openai")
-		self.openaiKeyField.Show(sel == "openai")
+		show_groq = (sel == "groq")
+		show_gemini = (sel == "gemini")
+		
+		self.groqLabel.Show(show_groq)
+		self.apiKeyField.Show(show_groq)
+		self.groqBtn.Show(show_groq)
+		
+		self.geminiLabel.Show(show_gemini)
+		self.geminiKeyField.Show(show_gemini)
+		self.geminiBtn.Show(show_gemini)
+		
 		self.Layout()
 
 	def onCheckUpdate(self, event):
@@ -130,7 +141,6 @@ class SmartLingoSettingsPanel(SettingsPanel):
 		self.addonConf['model'] = self.modelChoice.GetStringSelection().lower()
 		self.addonConf['apiKey'] = self.apiKeyField.GetValue()
 		self.addonConf['geminiApiKey'] = self.geminiKeyField.GetValue()
-		self.addonConf['openaiApiKey'] = self.openaiKeyField.GetValue()
 		# Map display name back to language code using .get() to avoid crashes on unknown names
 		self.addonConf['from'] = langslist.get(self._fromChoice.GetStringSelection(), 'auto')
 		self.addonConf['into'] = langslist.get(self._intoChoice.GetStringSelection(), 'en')

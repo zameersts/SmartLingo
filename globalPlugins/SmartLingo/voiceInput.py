@@ -140,7 +140,7 @@ class VoiceInputManager:
 	def transcribe(self, path, lang):
 		"""
 		Transcribes audio using the available API key.
-		Priority: Groq Whisper > OpenAI Whisper.
+		Priority: Groq Whisper.
 		Gemini does not support STT, so a clear error message is shown if only a Gemini key is provided.
 		"""
 		groq_key = self.api_keys.get("groq")
@@ -149,24 +149,18 @@ class VoiceInputManager:
 			if text:
 				return text
 
-		openai_key = self.api_keys.get("openai")
-		if openai_key:
-			text = self._transcribe_openai(path, lang, openai_key)
-			if text:
-				return text
-
 		# If only a Gemini key is provided, show a clear error — Gemini does not support STT
 		gemini_key = self.api_keys.get("gemini")
-		if gemini_key and not groq_key and not openai_key:
-			log.warning("SmartLingo: Gemini does not support voice input (STT). Please add a Groq or OpenAI API key for voice.")
+		if gemini_key and not groq_key:
+			log.warning("SmartLingo: Gemini does not support voice input (STT). Please add a Groq API key for voice.")
 			queueHandler.queueFunction(
 				queueHandler.eventQueue,
 				ui.message,
-				_("Voice input requires a Groq or OpenAI API key. Gemini does not support speech recognition.")
+				_("Voice input requires a Groq API key. Gemini does not support speech recognition.")
 			)
 			return None
 
-		log.error("SmartLingo: No valid STT API key provided (Groq or OpenAI required for voice input).")
+		log.error("SmartLingo: No valid STT API key provided (Groq required for voice input).")
 		return None
 
 	def _transcribe_groq(self, path, lang, api_key):
@@ -189,25 +183,6 @@ class VoiceInputManager:
 			log.error(f"SmartLingo: Groq STT exception: {e}")
 		return None
 
-	def _transcribe_openai(self, path, lang, api_key):
-		try:
-			url = "https://api.openai.com/v1/audio/transcriptions"
-			headers = {"Authorization": f"Bearer {api_key}"}
-			iso_lang = lang.split("_")[0] if lang and lang != "auto" else None
-			
-			with open(path, "rb") as f:
-				files = {"file": (os.path.basename(path), f, "audio/wav")}
-				data = {"model": "whisper-1"}
-				if iso_lang:
-					data["language"] = iso_lang
-				
-				resp = _session.post(url, headers=headers, files=files, data=data, timeout=30, verify=True)
-				if resp.status_code == 200:
-					return resp.json().get("text")
-				log.error(f"SmartLingo: OpenAI STT error {resp.status_code}: {resp.text}")
-		except Exception as e:
-			log.error(f"SmartLingo: OpenAI STT exception: {e}")
-		return None
 
 	def cleanup(self):
 		self._stop_event.set()

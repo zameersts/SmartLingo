@@ -33,7 +33,6 @@ confspec = {
 	"model": "string(default=groq)",
 	"apiKey": "string(default=)",
 	"geminiApiKey": "string(default=)",
-	"openaiApiKey": "string(default=)",
 	"autoupdate": "boolean(default=true)",
 	"dictationlang": "string(default=en)",
 }
@@ -175,7 +174,6 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		# Pass api keys to manager
 		keys = {
 			"groq": self.addonConf.get("apiKey"),
-			"openai": self.addonConf.get("openaiApiKey"),
 			"gemini": self.addonConf.get("geminiApiKey"),
 		}
 		self._voiceManager.toggle(api_keys=keys)
@@ -195,34 +193,48 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 			ui.message(_("Recording started for typing..."))
 		keys = {
 			"groq": self.addonConf.get("apiKey"),
-			"openai": self.addonConf.get("openaiApiKey"),
 			"gemini": self.addonConf.get("geminiApiKey"),
 		}
 		self._voiceManager.toggle(api_keys=keys)
 
 	def _onVoiceText(self, text):
 		if getattr(self, "_is_dictation_mode", False):
-			# Announce what was transcribed so user can confirm API is working
-			ui.message(text)
-			# Copy transcribed text to clipboard
-			api.copyToClip(text)
-			hwnd = getattr(self, '_dictation_hwnd', None)
-
-			def _paste():
-				import ctypes
-				KEYEVENTF_KEYUP = 0x0002
-				# Restore the original edit window to foreground
-				if hwnd:
-					ctypes.windll.user32.SetForegroundWindow(hwnd)
-				# Raw Windows API Ctrl+V — bypasses NVDA input pipeline entirely
-				ctypes.windll.user32.keybd_event(0x11, 0, 0, 0)           # Ctrl down
-				ctypes.windll.user32.keybd_event(0x56, 0, 0, 0)           # V down
-				ctypes.windll.user32.keybd_event(0x56, 0, KEYEVENTF_KEYUP, 0)  # V up
-				ctypes.windll.user32.keybd_event(0x11, 0, KEYEVENTF_KEYUP, 0)  # Ctrl up
-
-			wx.CallLater(300, _paste)
+			# Check if we need Roman script conversion
+			dictation_lang = self.dictation_lang
+			if "_roman" in dictation_lang:
+				def _run_conversion():
+					# Use Translator in dictation mode (minimal prompt, no persona)
+					translator = Translator("auto", dictation_lang, text, conf=self.addonConf, is_dictation=True)
+					translator.start()
+					translator.join()
+					if translator.error:
+						wx.CallAfter(self._finish_dictation, text) # Fallback to original
+					else:
+						wx.CallAfter(self._finish_dictation, translator.translation)
+				threading.Thread(target=_run_conversion, daemon=True).start()
+			else:
+				self._finish_dictation(text)
 		else:
 			self.do_translate(text)
+
+	def _finish_dictation(self, text):
+		# Announce what was transcribed (or converted)
+		ui.message(text)
+		# Copy to clipboard
+		api.copyToClip(text)
+		hwnd = getattr(self, '_dictation_hwnd', None)
+
+		def _paste():
+			import ctypes
+			KEYEVENTF_KEYUP = 0x0002
+			if hwnd:
+				ctypes.windll.user32.SetForegroundWindow(hwnd)
+			ctypes.windll.user32.keybd_event(0x11, 0, 0, 0)           # Ctrl down
+			ctypes.windll.user32.keybd_event(0x56, 0, 0, 0)           # V down
+			ctypes.windll.user32.keybd_event(0x56, 0, KEYEVENTF_KEYUP, 0)  # V up
+			ctypes.windll.user32.keybd_event(0x11, 0, KEYEVENTF_KEYUP, 0)  # Ctrl up
+
+		wx.CallLater(300, _paste)
 
 	@scriptHandler.script(description=_("Cancel ongoing recording or translation."))
 	def script_cancel(self, gesture):
