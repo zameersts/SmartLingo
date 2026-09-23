@@ -25,7 +25,7 @@ Notes:
 
 - **Voice Features:** Voice Translation (NVDA+Alt+V) and Voice Dictation (NVDA+Alt+D) still require a Groq API key (Whisper), even if translation is set to Google Translate or Gemini.
 
-Version 1.7 - 2026-05-14
+Version 1.7 - 2026-05-13
 -------------------------
 
 Improvements:
@@ -75,7 +75,7 @@ Version 1.3 - 2026-05-06
 
 Bug Fixes:
 
-- Fixed: Voice dictation (NVDA + Alt + D) was not pasting transcribed text into the edit box. Root cause: wx.CallAfter(gesture.send) was unreliable — gesture ran outside NVDA's main event thread. Now correctly uses wx.CallLater(150ms) + queueHandler to ensure clipboard is ready before Ctrl+V is sent.
+- Fixed: Voice dictation (NVDA + Alt + D) was not pasting transcribed text into the edit box. Root cause was the NVDA gesture pipeline interfering with the paste gesture — now uses raw Windows API (`ctypes keybd_event`) for a reliable Ctrl+V paste.
 
 Improvements:
 
