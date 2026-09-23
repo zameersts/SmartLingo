@@ -22,13 +22,15 @@ class SmartLingoSettingsPanel(SettingsPanel):
 		
 		# AI Model Selection
 		helper.addItem(wx.StaticText(self, label=_("AI Configuration:")))
-		self.modelChoice = helper.addLabeledControl(_("Select AI Model:"), wx.Choice, choices=["Groq", "Gemini", "Google Translate"])
+		self.modelChoice = helper.addLabeledControl(_("Select AI Model:"), wx.Choice, choices=["Groq", "Gemini", "Google Translate", "DeepL (Free)"])
 		model_val = self.addonConf.get("model", "groq").lower()
 		selection_idx = 0
 		if model_val == "gemini":
 			selection_idx = 1
 		elif model_val == "google":
 			selection_idx = 2
+		elif model_val == "deepl":
+			selection_idx = 3
 		self.modelChoice.SetSelection(selection_idx)
 		
 		# API Keys
@@ -146,6 +148,8 @@ class SmartLingoSettingsPanel(SettingsPanel):
 			model_val = "google"
 		elif sel == "gemini":
 			model_val = "gemini"
+		elif sel == "deepl (free)":
+			model_val = "deepl"
 		else:
 			model_val = "groq"
 		self.addonConf['model'] = model_val

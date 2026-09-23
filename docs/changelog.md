@@ -3,6 +3,24 @@ Changelog - SmartLingo Pro
 
 All notable changes to SmartLingo Pro are documented here.
 
+Version 1.9
+------------
+
+New feature:
+
+- **DeepL (Free):** Added DeepL as a free translation model. No API key required. Long text is split automatically and auto-detect and auto-swap work with it too.
+
+Voice recognition:
+
+- **Mixed Urdu and English:** English words like WiFi, settings, update and email now stay in English instead of changing into Urdu.
+- **Whisper large v3:** Upgraded the speech recognition model for better accuracy.
+- **Audio cleanup:** Silent gaps are trimmed and quiet audio is made louder before transcription.
+- **Mic overflow:** Buffer overflow is now detected and handled cleanly instead of damaging the audio.
+
+Settings:
+
+- **DeepL (Free)** added to the AI model dropdown.
+
 Version 1.8 - 2026-05-21
 -------------------------
 

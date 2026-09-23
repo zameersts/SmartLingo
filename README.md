@@ -13,7 +13,7 @@ We built this addon so you wouldn't have to constantly switch windows or juggle 
 - **Standalone AI Assistant:** SmartLingo is now your personal AI companion. Open the chat window anytime to ask questions, brainstorm ideas, or hold a natural conversation with full context.
 - **Auto-Copy:** As soon as a translation is ready, we copy it to your clipboard so you can paste it anywhere.
 - **Automatic Updates:** Don't worry about missing new features! SmartLingo checks for new versions on GitHub and updates itself.
-- **Pick your AI:** You're not locked into one system. Choose between Google Gemini, Groq, or Google Translate based on what you prefer (Google Translate does not require an API key for text translation).
+- **Pick your AI:** You're not locked into one system. Choose between Google Gemini, Groq, Google Translate, or DeepL based on what you prefer (Google Translate and DeepL do not require an API key for text translation).
 
 ## 🛠️ What do you need to use it?
 
@@ -66,6 +66,12 @@ Want to just talk? It's easy!
 - PyAudio is included with the addon and does not need to be installed separately.
 
 ## 🆕 What's New
+
+### Version 1.9
+
+- **DeepL (Free):** New free translation model, no API key required.
+- **Better voice recognition:** Mixed Urdu and English words stay correct, quieter recordings are boosted automatically.
+- **More accurate speech:** Upgraded Whisper model.
 
 ### Version 1.8 (2026-05-21)
 

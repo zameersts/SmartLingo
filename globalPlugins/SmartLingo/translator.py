@@ -6,6 +6,7 @@
 import time
 import requests
 import threading
+from uuid import uuid4
 from requests.adapters import HTTPAdapter
 from logHandler import log
 from .langslist import g
@@ -18,6 +19,23 @@ _session.mount("https://", HTTPAdapter(max_retries=1))
 
 # Retryable HTTP status codes (temporary server-side issues)
 _RETRYABLE_CODES = {429, 500, 502, 503, 504}
+
+# --- DeepL free (unofficial) endpoint constants ---
+_DEEPL_TRANSLATE_URL = "https://oneshot-free.www.deepl.com/v1/storefront/translate"
+_DEEPL_LANGUAGE_MODEL = "next-gen"
+_DEEPL_USAGE_TYPE = "Translate"
+_DEEPL_MAX_CHUNK_SIZE = 500
+_DEEPL_USER_AGENT = (
+	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)"
+	" Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0"
+)
+_DEEPL_HEADERS = {
+	"Accept": "*/*",
+	"Content-Type": "application/json",
+	"Origin": "https://www.deepl.com",
+	"Referer": "https://www.deepl.com/",
+	"User-agent": _DEEPL_USER_AGENT,
+}
 
 # Human-readable error messages for known API error conditions
 def _classify_error(status_code, response_text):
@@ -60,7 +78,7 @@ class Translator(threading.Thread):
 			is_roman_swap = "_roman" in self.lang_swap if self.lang_swap else False
 			clean_swap = self.lang_swap.replace("_roman", "") if self.lang_swap else None
 
-			if model_type == "google" and self.is_dictation and is_roman_target:
+			if model_type in ("google", "deepl") and self.is_dictation and is_roman_target:
 				if self.conf.get("apiKey"):
 					model_type = "groq"
 				elif self.conf.get("geminiApiKey"):
@@ -71,6 +89,9 @@ class Translator(threading.Thread):
 			if model_type == "google":
 				langSwap = clean_swap if (self.lang_from == "auto" and self.lang_swap) else None
 				self.translation = self.send_google_free_request(self.text, self.lang_from, clean_target, langSwap)
+			elif model_type == "deepl":
+				langSwap = clean_swap if (self.lang_from == "auto" and self.lang_swap) else None
+				self.translation = self.send_deepl_free_request(self.text, self.lang_from, clean_target, langSwap)
 			else:
 				system_prompt, user_text = self.prepare_prompt(self.text, self.lang_from, clean_target, is_roman_target, clean_swap, is_roman_swap)
 
@@ -149,7 +170,13 @@ class Translator(threading.Thread):
 	def prepare_prompt(self, text, lang_from, lang_to, is_roman, swap_lang=None, is_roman_swap=False):
 		if self.is_dictation:
 			target_name = g(lang_to)
-			system = f"Convert the following text to {target_name} script. If it's Urdu, use Roman Urdu (Latin script). DO NOT translate. If the text is already in the target script or another language, return it exactly as is. Output ONLY the converted text."
+			system = (
+				f"Convert the following text to {target_name} script. If it's Urdu, use Roman Urdu (Latin script). "
+				"DO NOT translate. If a word is already in English, KEEP IT EXACTLY AS-IS in English/Latin script — "
+				"do not transliterate English words phonetically into the target script. "
+				"If the text is already in the target script or another language, return it exactly as is. "
+				"Output ONLY the converted text."
+			)
 			return system, text
 
 		target_name = g(lang_to)
@@ -212,7 +239,7 @@ class Translator(threading.Thread):
 		messages.append({"role": "user", "content": user_text})
 
 		data = {
-			"model": "llama-3.3-70b-versatile",
+			"model": "openai/gpt-oss-120b",
 			"messages": messages,
 			"temperature": 0.3 if self.history else 0.1,
 			"max_tokens": 1024
@@ -269,48 +296,72 @@ class Translator(threading.Thread):
 		return _classify_error(resp.status_code, resp.text)
 
 	def send_google_free_request(self, text, lang_from, lang_to, lang_swap=None):
-		url = "https://translate.googleapis.com/translate_a/single"
-		params = {
-			"client": "gtx",
-			"sl": lang_from,
-			"tl": lang_to,
-			"dt": "t"
-		}
+		"""
+		Free translation via Google's internal "translate-pa" endpoint — the same
+		one Google's own apps (e.g. the Android Google app) use internally.
+		Uses a reverse-engineered public API key; no user-provided key required.
+		Larger single-request size limit than the public translate_a/single endpoint.
+		"""
+		url = "https://translate-pa.googleapis.com/v1/translate"
+		api_key = "AIzaSyDLEeFI5OtFBwYBIoK_jj5m32rZK5CkCXA"
 		headers = {
-			"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+			"Content-Type": "application/json+protobuf",
+			"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
 		}
+
+		try:
+			import languageHandler
+			display_lang = languageHandler.getLanguage().replace("_", "-")
+		except Exception:
+			display_lang = "en"
+
+		def _build_params(target):
+			params = [
+				("params.client", "gtx"),
+				("query.source_language", lang_from),
+				("query.target_language", target),
+				("query.display_language", display_lang),
+				("query.text", text),
+				("key", api_key),
+				("data_types", "TRANSLATION"),
+				("data_types", "SENTENCE_SPLITS"),
+			]
+			return params
+
+		def _do_request(target):
+			resp = _session.get(url, params=_build_params(target), headers=headers, timeout=15)
+			return resp
+
+		def _parse(data):
+			sentences = data[1] if isinstance(data, list) and len(data) > 1 else None
+			if sentences:
+				translation = "".join(
+					sentence[0] for sentence in sentences if sentence and sentence[0]
+				)
+			else:
+				translation = (data[0] if isinstance(data, list) and len(data) > 0 else None) or ""
+			detected = data[5] if isinstance(data, list) and len(data) > 5 and data[5] else lang_from
+			return translation, detected
 
 		if self.cancel_event.is_set():
 			return "Request was cancelled."
 
 		try:
-			# Use POST to support large texts
-			resp = _session.post(url, params=params, data={"q": text}, headers=headers, timeout=15)
+			resp = _do_request(lang_to)
 			if resp.status_code == 200:
 				data = resp.json()
-				translated_parts = []
-				if data and isinstance(data, list) and len(data) > 0 and isinstance(data[0], list):
-					for part in data[0]:
-						if part and isinstance(part, list) and len(part) > 0 and isinstance(part[0], str):
-							translated_parts.append(part[0])
-					translation = "".join(translated_parts)
+				translation, detected = _parse(data)
 
-					# Handle auto-swap
-					detected_lang = data[2] if len(data) > 2 else None
-					if detected_lang and lang_swap and detected_lang.split("-")[0] == lang_to.split("-")[0]:
-						if self.cancel_event.is_set():
-							return "Request was cancelled."
-						params["tl"] = lang_swap
-						resp = _session.post(url, params=params, data={"q": text}, headers=headers, timeout=15)
-						if resp.status_code == 200:
-							data = resp.json()
-							translated_parts = []
-							if data and isinstance(data, list) and len(data) > 0 and isinstance(data[0], list):
-								for part in data[0]:
-									if part and isinstance(part, list) and len(part) > 0 and isinstance(part[0], str):
-										translated_parts.append(part[0])
-								translation = "".join(translated_parts)
-					return translation
+				# Handle auto-swap
+				if detected and lang_swap and detected.split("-")[0] == lang_to.split("-")[0]:
+					if self.cancel_event.is_set():
+						return "Request was cancelled."
+					resp = _do_request(lang_swap)
+					if resp.status_code == 200:
+						data = resp.json()
+						translation, detected = _parse(data)
+
+				return translation
 
 			if resp.status_code == 429:
 				return "Error: Google Translate rate limit reached. Please try again later."
@@ -318,3 +369,76 @@ class Translator(threading.Thread):
 		except Exception as e:
 			log.error(f"SmartLingo: Google Translate request exception: {e}")
 			return f"Error: {str(e)}"
+
+	def _deepl_translate_chunk(self, chunk, lang_from, lang_to):
+		"""
+		Sends a single chunk (<= _DEEPL_MAX_CHUNK_SIZE chars) to DeepL's free
+		(unofficial) web endpoint. Returns (translated_text, detected_source_lang).
+		Raises ValueError on an unexpected/empty response.
+		"""
+		body = {
+			"text": [chunk],
+			"source_lang": lang_from,
+			"target_lang": lang_to,
+			"language_model": _DEEPL_LANGUAGE_MODEL,
+			"usage_type": _DEEPL_USAGE_TYPE,
+			"app_information": {
+				"instance_id": str(uuid4()),
+				"app_build": "Edge",
+				"os": "Windows",
+				"app_version": "any",
+				"os_version": "any",
+			},
+		}
+		resp = _session.post(_DEEPL_TRANSLATE_URL, json=body, headers=_DEEPL_HEADERS, timeout=15)
+		if resp.status_code != 200:
+			raise ValueError(f"HTTP {resp.status_code}: {resp.text[:200]}")
+		data = resp.json()
+		translations = data.get("translations") if isinstance(data, dict) else None
+		if not translations:
+			raise ValueError(f"no translation in response: {data!r}")
+		translation = translations[0] or {}
+		detected = (translation.get("detected_source_language") or lang_from or "").lower()
+		return translation.get("text") or "", detected
+
+	def send_deepl_free_request(self, text, lang_from, lang_to, lang_swap=None):
+		"""
+		Free translation via DeepL's unofficial "oneshot-free" storefront endpoint
+		(the same request DeepL's own website sends). No API key required.
+		Long text is split into <= _DEEPL_MAX_CHUNK_SIZE character chunks since the
+		endpoint has an informal size limit per request.
+		"""
+		if self.cancel_event.is_set():
+			return "Request was cancelled."
+
+		# Split into chunks the same way DeepL's site itself does (fixed char size).
+		chunks = [
+			text[i:i + _DEEPL_MAX_CHUNK_SIZE]
+			for i in range(0, len(text), _DEEPL_MAX_CHUNK_SIZE)
+		] or [""]
+
+		translated_parts = []
+		effective_to = lang_to
+		swapped = False
+
+		try:
+			for index, chunk in enumerate(chunks):
+				if self.cancel_event.is_set():
+					return "Request was cancelled."
+
+				translation, detected = self._deepl_translate_chunk(chunk, lang_from, effective_to)
+
+				# Auto-swap: if the detected source language is actually the target
+				# language, flip to the swap language (only checked on first chunk).
+				if index == 0 and not swapped and lang_swap and detected == effective_to.lower():
+					effective_to = lang_swap
+					swapped = True
+					translation, detected = self._deepl_translate_chunk(chunk, lang_from, effective_to)
+
+				translated_parts.append(translation)
+
+			return "".join(translated_parts)
+		except Exception as e:
+			log.error(f"SmartLingo: DeepL request exception: {e}")
+			return f"Error: {str(e)}"
+
