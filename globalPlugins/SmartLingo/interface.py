@@ -22,10 +22,13 @@ class SmartLingoSettingsPanel(SettingsPanel):
 		
 		# AI Model Selection
 		helper.addItem(wx.StaticText(self, label=_("AI Configuration:")))
-		self.modelChoice = helper.addLabeledControl(_("Select AI Model:"), wx.Choice, choices=["Groq", "Gemini"])
+		self.modelChoice = helper.addLabeledControl(_("Select AI Model:"), wx.Choice, choices=["Groq", "Gemini", "Google Translate"])
 		model_val = self.addonConf.get("model", "groq").lower()
 		selection_idx = 0
-		if model_val == "gemini": selection_idx = 1
+		if model_val == "gemini":
+			selection_idx = 1
+		elif model_val == "google":
+			selection_idx = 2
 		self.modelChoice.SetSelection(selection_idx)
 		
 		# API Keys
@@ -138,7 +141,14 @@ class SmartLingoSettingsPanel(SettingsPanel):
 		check_for_update(background=False)
 
 	def onSave(self):
-		self.addonConf['model'] = self.modelChoice.GetStringSelection().lower()
+		sel = self.modelChoice.GetStringSelection().lower()
+		if sel == "google translate":
+			model_val = "google"
+		elif sel == "gemini":
+			model_val = "gemini"
+		else:
+			model_val = "groq"
+		self.addonConf['model'] = model_val
 		self.addonConf['apiKey'] = self.apiKeyField.GetValue()
 		self.addonConf['geminiApiKey'] = self.geminiKeyField.GetValue()
 		# Map display name back to language code using .get() to avoid crashes on unknown names

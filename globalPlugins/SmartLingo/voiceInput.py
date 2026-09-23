@@ -7,14 +7,19 @@ import sys
 import threading
 import wave
 import requests
+from requests.adapters import HTTPAdapter
+
+_session = requests.Session()
+_session.trust_env = False
+_session.mount("https://", HTTPAdapter(max_retries=1))
 import tempfile
 import tones
 import ui
 import queueHandler
 from logHandler import log
 
-_session = requests.Session()
-_session.trust_env = False
+# Fix #12: trust_env kept False for speed, but documented — user can change if needed for proxies
+
 
 # Add lib/ to sys.path
 _addon_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -26,12 +31,15 @@ try:
 	import pyaudio
 	_AUDIO_AVAILABLE = True
 except ImportError:
+	# Fix #8: Log import failure
+	log.error("SmartLingo: PyAudio import failed. Voice input unavailable.")
 	_AUDIO_AVAILABLE = False
 
 _SAMPLE_RATE = 16000
 _CHANNELS = 1
 _CHUNK_SIZE = 1024
-_MAX_AUDIO_BYTES = 10 * 1024 * 1024  # SECURITY: 10 MB cap — ~5 min of audio, prevents memory exhaustion
+_MAX_AUDIO_BYTES = 10 * 1024 * 1024  # SECURITY: 10 MB cap — ~5 min of audio
+
 
 class VoiceInputManager:
 	def __init__(self, on_text_ready):
@@ -48,11 +56,12 @@ class VoiceInputManager:
 	def toggle(self, api_keys=None):
 		if api_keys:
 			self.api_keys = api_keys
-		
+
 		if self.is_recording():
 			self._stop_event.set()
 		else:
 			if not _AUDIO_AVAILABLE:
+				# Fix #1: Already on main thread here (called from gesture handler)
 				ui.message(_("PyAudio not available. Please reinstall the addon."))
 				return
 			self._stop_event.clear()
@@ -70,15 +79,16 @@ class VoiceInputManager:
 
 		if self._cancel_event.is_set():
 			return
-		
+
 		import nvwave
 		stop_snd = os.path.join(os.path.dirname(__file__), "sounds", "send.wav")
 		if os.path.exists(stop_snd):
 			nvwave.playWaveFile(stop_snd, asynchronous=True)
 		else:
 			tones.beep(440, 100)
-			
+
 		if frames:
+			# Fix #1: UI via queueHandler (already correct here)
 			queueHandler.queueFunction(queueHandler.eventQueue, ui.message, _("Transcribing..."))
 			self._process(frames)
 		else:
@@ -87,6 +97,8 @@ class VoiceInputManager:
 	def _capture(self):
 		p = pyaudio.PyAudio()
 		frames = []
+		# Fix #3: Running byte counter instead of O(n) sum on every chunk
+		total_bytes = 0
 		try:
 			import nvwave
 			start_snd = os.path.join(os.path.dirname(__file__), "sounds", "Voice Start.wav")
@@ -94,21 +106,29 @@ class VoiceInputManager:
 				nvwave.playWaveFile(start_snd, asynchronous=True)
 			else:
 				tones.beep(880, 100)
-				
-			stream = p.open(format=pyaudio.paInt16, channels=_CHANNELS, rate=_SAMPLE_RATE, input=True, frames_per_buffer=_CHUNK_SIZE)
+
+			stream = p.open(
+				format=pyaudio.paInt16,
+				channels=_CHANNELS,
+				rate=_SAMPLE_RATE,
+				input=True,
+				frames_per_buffer=_CHUNK_SIZE
+			)
 
 			while not self._stop_event.is_set():
 				try:
 					data = stream.read(_CHUNK_SIZE, exception_on_overflow=False)
 					frames.append(data)
-					# SECURITY: Enforce audio size cap to prevent memory exhaustion
-					if sum(len(f) for f in frames) > _MAX_AUDIO_BYTES:
+					# Fix #3: O(1) counter instead of O(n) sum each iteration
+					total_bytes += len(data)
+					if total_bytes > _MAX_AUDIO_BYTES:
 						log.warning("SmartLingo: Audio size limit reached (10 MB). Stopping recording.")
 						queueHandler.queueFunction(queueHandler.eventQueue, ui.message, _("Recording limit reached. Stopping."))
 						break
 				except Exception as e:
 					log.error(f"SmartLingo: Stream read error: {e}")
 					break
+
 			stream.stop_stream()
 			stream.close()
 		except Exception as e:
@@ -119,6 +139,7 @@ class VoiceInputManager:
 		return frames
 
 	def _process(self, frames):
+		# Fix #10: Use delete=False + manual cleanup in finally (safer than delete=True with wave.open)
 		fd, path = tempfile.mkstemp(suffix=".wav")
 		os.close(fd)
 		try:
@@ -127,15 +148,23 @@ class VoiceInputManager:
 				wf.setsampwidth(2)
 				wf.setframerate(_SAMPLE_RATE)
 				wf.writeframes(b"".join(frames))
-			
+
 			text = self.transcribe(path, self.recognition_lang)
 			if text:
 				queueHandler.queueFunction(queueHandler.eventQueue, self.on_text_ready, text)
 			else:
 				queueHandler.queueFunction(queueHandler.eventQueue, ui.message, _("Could not recognize speech."))
+		except Exception as e:
+			# Fix #8: Log exception instead of silent failure
+			log.error(f"SmartLingo: Audio processing error: {e}")
+			queueHandler.queueFunction(queueHandler.eventQueue, ui.message, _("Audio processing error."))
 		finally:
-			if os.path.exists(path):
-				os.remove(path)
+			# Fix #10: Always clean up temp file, even on crash
+			try:
+				if os.path.exists(path):
+					os.remove(path)
+			except Exception as e:
+				log.error(f"SmartLingo: Temp file cleanup error: {e}")
 
 	def transcribe(self, path, lang):
 		"""
@@ -149,10 +178,10 @@ class VoiceInputManager:
 			if text:
 				return text
 
-		# If only a Gemini key is provided, show a clear error — Gemini does not support STT
+		# If only a Gemini key is provided, show a clear error
 		gemini_key = self.api_keys.get("gemini")
 		if gemini_key and not groq_key:
-			log.warning("SmartLingo: Gemini does not support voice input (STT). Please add a Groq API key for voice.")
+			log.warning("SmartLingo: Gemini does not support voice input (STT). Please add a Groq API key.")
 			queueHandler.queueFunction(
 				queueHandler.eventQueue,
 				ui.message,
@@ -168,13 +197,13 @@ class VoiceInputManager:
 			url = "https://api.groq.com/openai/v1/audio/transcriptions"
 			headers = {"Authorization": f"Bearer {api_key}"}
 			iso_lang = lang.split("_")[0] if lang and lang != "auto" else None
-			
+
 			with open(path, "rb") as f:
 				files = {"file": (os.path.basename(path), f, "audio/wav")}
 				data = {"model": "whisper-large-v3-turbo"}
 				if iso_lang:
 					data["language"] = iso_lang
-				
+
 				resp = _session.post(url, headers=headers, files=files, data=data, timeout=30, verify=True)
 				if resp.status_code == 200:
 					return resp.json().get("text")
@@ -182,7 +211,6 @@ class VoiceInputManager:
 		except Exception as e:
 			log.error(f"SmartLingo: Groq STT exception: {e}")
 		return None
-
 
 	def cleanup(self):
 		self._stop_event.set()

@@ -60,6 +60,14 @@ Want to just talk? It's easy!
 - Note: Voice input requires a Groq API key. Gemini does not support speech recognition.
 - The first time you use voice, ensure PyAudio is available (included with the addon).
 
+## 🆕 What's New in 1.8?
+
+- **Free Google Translate:** Translate text without any API key.
+- **More Stable:** Fixed random freezes and crashes during heavy use.
+- **Smarter Cancel & Retries:** Requests cancel properly and automatically retry on temporary network errors.
+- **Large Text Safe:** Very large clipboard text no longer hangs NVDA.
+- **Note:** Voice input still needs a free Groq API key (Google Translate doesn't do speech recognition).
+
 ## 🆕 What's New in 1.7?
 
 - **Get API Key Buttons:** Added convenient buttons in the settings panel to quickly open the websites for Groq and Gemini API keys.

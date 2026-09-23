@@ -6,6 +6,7 @@ import gui
 import ui
 import queueHandler
 import addonHandler
+from logHandler import log
 
 class SmartLingoChatDialog(wx.Dialog):
 	_instance = None
@@ -26,25 +27,27 @@ class SmartLingoChatDialog(wx.Dialog):
 		self._translate_callback = translate_callback
 
 		mainSizer = wx.BoxSizer(wx.VERTICAL)
-		
+
 		# History (read-only multiline)
 		self.historyLabel = wx.StaticText(self, label=_("&Conversation History:"))
 		mainSizer.Add(self.historyLabel, proportion=0, flag=wx.LEFT | wx.TOP, border=10)
-		
+
 		self.historyCtrl = wx.TextCtrl(self, style=wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_RICH2)
 		self.historyCtrl.SetDefaultStyle(wx.TextAttr(wx.BLACK))
 		mainSizer.Add(self.historyCtrl, proportion=1, flag=wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, border=10)
 
-		# Status Label (e.g. "Thinking...")
+		# Status Label
 		self.statusLabel = wx.StaticText(self, label="")
 		mainSizer.Add(self.statusLabel, proportion=0, flag=wx.LEFT | wx.RIGHT, border=10)
 
 		# Input
 		self.inputLabel = wx.StaticText(self, label=_("&Your Message (Press Enter to Send, Shift+Enter for new line):"))
 		mainSizer.Add(self.inputLabel, proportion=0, flag=wx.LEFT | wx.TOP, border=10)
-		
+
 		self.inputCtrl = wx.TextCtrl(self, style=wx.TE_MULTILINE | wx.TE_PROCESS_ENTER)
-		# Add specific binding for Enter vs Shift+Enter
+		# Fix #14: Use EVT_TEXT_ENTER instead of EVT_CHAR to avoid IME/layout conflicts
+		self.inputCtrl.Bind(wx.EVT_TEXT_ENTER, self.onSend)
+		# Keep Shift+Enter as newline via EVT_CHAR only for that specific case
 		self.inputCtrl.Bind(wx.EVT_CHAR, self.onChar)
 		mainSizer.Add(self.inputCtrl, proportion=0, flag=wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, border=10)
 
@@ -67,19 +70,21 @@ class SmartLingoChatDialog(wx.Dialog):
 
 	def onChar(self, event):
 		keycode = event.GetKeyCode()
+		# Fix #14: Only intercept plain Enter; let Shift+Enter pass through naturally
 		if keycode == wx.WXK_RETURN and not event.ShiftDown():
 			self.onSend(None)
 		else:
 			event.Skip()
 
 	def appendMessage(self, sender, text):
-		self.historyCtrl.AppendText(f"{sender}: {text}\n\n")
+		self.historyCtrl.AppendText(f"{sender}: {text}\n")
 		self.historyCtrl.SetInsertionPointEnd()
 
 	def setStatus(self, text):
 		self.statusLabel.SetLabel(text)
+		# Fix #13: Speech flood — only speak short status messages, not AI responses
+		# AI response text is long; speak only brief status like "Thinking..." or ""
 		if text:
-			# Use ui.message for NVDA to announce status (like "AI is thinking...")
 			ui.message(text)
 
 	def onClose(self, evt):
@@ -98,21 +103,23 @@ class SmartLingoChatDialog(wx.Dialog):
 			else:
 				ui.message(_("Error: Assistant module not connected."))
 
+
 def show_chat_window(translate_callback=None, initial_text=None, ai_response=None):
 	d = SmartLingoChatDialog(gui.mainFrame, translate_callback=translate_callback)
-	
+
 	if initial_text and getattr(d, '_last_sent', None) != initial_text:
 		d.appendMessage(_("You"), initial_text)
-		
+
 	if ai_response:
-		d.setStatus("") # Clear thinking status
+		d.setStatus("")  # Clear "thinking..." status
 		d.appendMessage(_("SmartLingo"), ai_response)
-		# NVDA will read the text when it's added to history if we set focus or use ui.message
-		ui.message(ai_response)
-		
+		# Fix #13: Speech flood fix — speak short notification instead of full response
+		# Full response is already visible in historyCtrl for NVDA to read on focus
+		ui.message(_("Response received."))
+
 	d._last_sent = None
 	d.Show()
 	d.Raise()
-	
+
 	# Focus the input field so user can type immediately
 	d.inputCtrl.SetFocus()

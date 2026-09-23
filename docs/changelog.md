@@ -3,6 +3,28 @@ Changelog - SmartLingo Pro
 
 All notable changes to SmartLingo Pro are documented here.
 
+Version 1.8 - 2026-05-21
+-------------------------
+
+New Feature:
+
+- **Google Translate Support:** Added Google Translate as a free translation option. No API key is required for text translation.
+
+Improvements & Stability:
+
+- **Fixed Stability Issues:** Resolved random NVDA freezes and crashes during heavy translation or voice input sessions.
+- **Intelligent Cancellation:** Translation requests are now properly cancelled when a new one starts or the user manually cancels (NVDA+Alt+C).
+- **Network Resilience:** Added automatic retries with exponential backoff for temporary API or network failures (429, 5xx).
+- **Large Text Protection:** Prevents NVDA from hanging when translating very large clipboard content.
+- **Zero-Lag Voice Recording:** Optimized audio processing to prevent lag during long recordings.
+- **Optimized Memory Usage:** Fixed excessive memory growth during long chat sessions.
+- **Improved Chat UI:** Chat window now announces "Response received" instead of speaking the full AI response.
+- **Clearer Error Messages:** More descriptive errors for invalid API keys, rate limits, and connection issues.
+
+Notes:
+
+- **Voice Features:** Voice Translation (NVDA+Alt+V) and Voice Dictation (NVDA+Alt+D) still require a Groq API key (Whisper), even if translation is set to Google Translate or Gemini.
+
 Version 1.7 - 2026-05-14
 -------------------------
 

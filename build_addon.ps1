@@ -1,4 +1,5 @@
-$src = 'c:\my\SmartLingo'
+# Build from the script's own folder (works anywhere)
+$src = Split-Path -Parent $MyInvocation.MyCommand.Path
 # Read version from manifest.ini dynamically
 $manifest = Get-Content (Join-Path $src "manifest.ini")
 $versionLine = $manifest | Select-String "^version\s*=" | Select-Object -First 1

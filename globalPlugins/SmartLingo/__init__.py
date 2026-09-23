@@ -13,6 +13,7 @@ import ui
 import wx
 import tones
 from functools import wraps
+from logHandler import log
 from .interface import SmartLingoSettingsPanel
 from .langslist import g
 from .speechOnDemand import getSpeechOnDemandParameter, executeWithSpeakOnDemand
@@ -39,6 +40,8 @@ confspec = {
 
 speakOnDemand = getSpeechOnDemandParameter()
 
+# Fix #11: Input character limit
+_MAX_INPUT_CHARS = 5000
 
 
 class GlobalPlugin(globalPluginHandler.GlobalPlugin):
@@ -52,12 +55,16 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		self._last_request_id = 0
 		self._is_dictation_mode = False
 		self._chat_history = []
-		
+		# Fix #6: Thread lock for chat history race condition
+		self._history_lock = threading.Lock()
+		# Fix #1: Active cancel event — set when user cancels or new request starts
+		self._cancel_event = threading.Event()
+
 		SmartLingoSettingsPanel.addonConf = self.addonConf
 		gui.settingsDialogs.NVDASettingsDialog.categoryClasses.append(SmartLingoSettingsPanel)
-		
+
 		self.settings_map = {
-			"lang_from": "from", "lang_to": "into", "lang_swap": "swap", 
+			"lang_from": "from", "lang_to": "into", "lang_swap": "swap",
 			"copyTranslation": "copytranslatedtext", "autoSwap": "autoswap",
 			"dictation_lang": "dictationlang"
 		}
@@ -68,15 +75,20 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 			))
 
 		self._voiceManager = VoiceInputManager(self._onVoiceText)
-		
+
 		if self.addonConf.get("autoupdate", True):
-			from .updater import check_for_update
-			check_for_update(background=True)
+			try:
+				from .updater import check_for_update
+				check_for_update(background=True)
+			except Exception as e:
+				# Fix #8: Log instead of silent pass
+				log.error(f"SmartLingo: Updater error: {e}")
 
 	def terminate(self):
 		try:
 			gui.settingsDialogs.NVDASettingsDialog.categoryClasses.remove(SmartLingoSettingsPanel)
-		except: pass
+		except Exception as e:
+			log.error(f"SmartLingo: Error removing settings panel: {e}")
 		if hasattr(self, "_voiceManager"):
 			self._voiceManager.cleanup()
 
@@ -87,60 +99,91 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 			ui.message(_("Recording in progress, please wait."))
 			return
 		text = api.getClipData()
-		if not text: ui.message(_("Clipboard is empty"))
-		else: self.do_translate(text)
-
+		if not text:
+			ui.message(_("Clipboard is empty"))
+		else:
+			# Fix #11: Input length protection
+			if len(text) > _MAX_INPUT_CHARS:
+				ui.message(_("Text too long. Only first {n} characters will be translated.").format(n=_MAX_INPUT_CHARS))
+				text = text[:_MAX_INPUT_CHARS]
+			self.do_translate(text)
 
 
 	def do_translate(self, text, is_follow_up=False, is_chat=False):
+		# Fix #11: Input length protection
+		if len(text) > _MAX_INPUT_CHARS:
+			text = text[:_MAX_INPUT_CHARS]
+
+		# Fix #1: Cancel any in-flight HTTP request before starting new one
+		self._cancel_event.set()
+		self._cancel_event = threading.Event()
 		self._last_request_id += 1
 		request_id = self._last_request_id
-		
+
 		langFrom = self.lang_from
 		langTo = self.lang_to
 		langSwap = self.lang_swap if (langFrom == "auto" and self.autoSwap) else None
-		
+
 		# Reset history on fresh translation from outside the chat
 		if not is_follow_up and not is_chat:
-			self._chat_history = []
-			
-		threading.Thread(target=self._run_translation, args=(request_id, text, langFrom, langTo, langSwap, is_follow_up, is_chat), name=f"translation_{request_id}", daemon=True).start()
+			with self._history_lock:
+				self._chat_history = []
 
-	def _run_translation(self, request_id, text, langFrom, langTo, langSwap, is_follow_up, is_chat):
-		use_chat = self.addonConf.get("enablechat", False) or is_follow_up or is_chat
-		history = self._chat_history if use_chat else None
-		
-		translator = Translator(langFrom, langTo, text, langSwap, conf=self.addonConf, history=history, is_chat=is_chat or is_follow_up)
-		translator.start()
-		translator.join()
-		
-		# Only show result if this is still the most recent request
+		# Fix #7: Thread just wraps _run_translation, no join
+		threading.Thread(
+			target=self._run_translation,
+			args=(request_id, text, langFrom, langTo, langSwap, is_follow_up, is_chat, self._cancel_event),
+			name=f"translation_{request_id}",
+			daemon=True
+		).start()
+
+	def _run_translation(self, request_id, text, langFrom, langTo, langSwap, is_follow_up, is_chat, cancel_event):
+		use_chat = is_follow_up or is_chat
+
+		# Fix #6: Thread-safe history copy
+		with self._history_lock:
+			history = list(self._chat_history) if use_chat else []
+
+		try:
+			# Fix #7: Direct .run() call — no nested thread start+join
+			translator = Translator(langFrom, langTo, text, langSwap, conf=self.addonConf, history=history, is_chat=is_chat or is_follow_up, cancel_event=cancel_event)
+			translator.run()
+		except Exception as e:
+			# Fix #8: Log exception
+			log.error(f"SmartLingo: _run_translation exception: {e}")
+			wx.CallAfter(ui.message, _("Translation failed: ") + str(e))
+			return
+
+		# Fix #2: Only process if still the latest request
 		if request_id != self._last_request_id:
 			return
 
 		if translator.error:
-			ui.message(_("Translation failed: ") + translator.error)
+			# Fix #1: UI via main thread
+			wx.CallAfter(ui.message, _("Translation failed: ") + translator.error)
 		else:
 			import nvwave, os
 			recv_snd = os.path.join(os.path.dirname(__file__), "sounds", "Received.wav")
-			if os.path.exists(recv_snd): nvwave.playWaveFile(recv_snd)
-			
+			if os.path.exists(recv_snd):
+				nvwave.playWaveFile(recv_snd)
+
 			self.lastTranslation = translator.translation
-			
+
 			if is_follow_up:
-				# Store interaction in history (limit to last 20 for performance)
-				self._chat_history.append({"role": "user", "content": text})
-				self._chat_history.append({"role": "assistant", "content": translator.translation})
-				if len(self._chat_history) > 20:
-					self._chat_history = self._chat_history[-20:]
-				
-				import wx
+				# Fix #5 & #6: Limit + lock history
+				with self._history_lock:
+					self._chat_history.append({"role": "user", "content": text})
+					self._chat_history.append({"role": "assistant", "content": translator.translation})
+					if len(self._chat_history) > 20:
+						self._chat_history = self._chat_history[-20:]
+
+				# Fix #1: UI on main thread
 				wx.CallAfter(show_chat_window, self.do_translate_followup, text, translator.translation)
 			else:
-				# Normal translation behavior
-				ui.message(translator.translation)
+				# Fix #1: UI on main thread
+				wx.CallAfter(ui.message, translator.translation)
 				if self.copyTranslation:
-					api.copyToClip(translator.translation)
+					wx.CallAfter(api.copyToClip, translator.translation)
 
 	def do_translate_followup(self, text):
 		"""Callback for the chat window to continue conversation."""
@@ -170,8 +213,6 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		self._voiceManager.recognition_lang = self.lang_from
 		if not self._voiceManager.is_recording():
 			ui.message(_("Recording started for translation..."))
-			
-		# Pass api keys to manager
 		keys = {
 			"groq": self.addonConf.get("apiKey"),
 			"gemini": self.addonConf.get("geminiApiKey"),
@@ -183,7 +224,6 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		self._is_dictation_mode = True
 		self._voiceManager.recognition_lang = self.dictation_lang if self.dictation_lang != "auto" else "en"
 		if not self._voiceManager.is_recording():
-			# Capture the target window handle NOW before NVDA shifts focus on stop gesture
 			import controlTypes
 			focus = api.getFocusObject()
 			if focus and controlTypes.State.EDITABLE in focus.states:
@@ -199,28 +239,29 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
 	def _onVoiceText(self, text):
 		if getattr(self, "_is_dictation_mode", False):
-			# Check if we need Roman script conversion
 			dictation_lang = self.dictation_lang
 			if "_roman" in dictation_lang:
 				def _run_conversion():
-					# Use Translator in dictation mode (minimal prompt, no persona)
-					translator = Translator("auto", dictation_lang, text, conf=self.addonConf, is_dictation=True)
-					translator.start()
-					translator.join()
-					if translator.error:
-						wx.CallAfter(self._finish_dictation, text) # Fallback to original
-					else:
-						wx.CallAfter(self._finish_dictation, translator.translation)
+					try:
+						translator = Translator("auto", dictation_lang, text, conf=self.addonConf, is_dictation=True)
+						translator.run()  # Fix #7: direct call
+						if translator.error:
+							log.error(f"SmartLingo: Dictation conversion error: {translator.error}")
+							wx.CallAfter(self._finish_dictation, text)
+						else:
+							wx.CallAfter(self._finish_dictation, translator.translation)
+					except Exception as e:
+						log.error(f"SmartLingo: Dictation conversion exception: {e}")
+						wx.CallAfter(self._finish_dictation, text)
 				threading.Thread(target=_run_conversion, daemon=True).start()
 			else:
-				self._finish_dictation(text)
+				# Fix #1: ensure main thread for UI
+				wx.CallAfter(self._finish_dictation, text)
 		else:
 			self.do_translate(text)
 
 	def _finish_dictation(self, text):
-		# Announce what was transcribed (or converted)
 		ui.message(text)
-		# Copy to clipboard
 		api.copyToClip(text)
 		hwnd = getattr(self, '_dictation_hwnd', None)
 
@@ -229,10 +270,10 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 			KEYEVENTF_KEYUP = 0x0002
 			if hwnd:
 				ctypes.windll.user32.SetForegroundWindow(hwnd)
-			ctypes.windll.user32.keybd_event(0x11, 0, 0, 0)           # Ctrl down
-			ctypes.windll.user32.keybd_event(0x56, 0, 0, 0)           # V down
-			ctypes.windll.user32.keybd_event(0x56, 0, KEYEVENTF_KEYUP, 0)  # V up
-			ctypes.windll.user32.keybd_event(0x11, 0, KEYEVENTF_KEYUP, 0)  # Ctrl up
+			ctypes.windll.user32.keybd_event(0x11, 0, 0, 0)
+			ctypes.windll.user32.keybd_event(0x56, 0, 0, 0)
+			ctypes.windll.user32.keybd_event(0x56, 0, KEYEVENTF_KEYUP, 0)
+			ctypes.windll.user32.keybd_event(0x11, 0, KEYEVENTF_KEYUP, 0)
 
 		wx.CallLater(300, _paste)
 
@@ -249,7 +290,6 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
 	def _is_translating(self):
 		"""Returns True if a translation request is currently running in the background."""
-		import threading
 		for thread in threading.enumerate():
 			if thread.name == f"translation_{self._last_request_id}" and thread.is_alive():
 				return True
@@ -259,9 +299,6 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	@scriptHandler.script(description=_("Announces the current source and target languages."), **speakOnDemand)
 	def script_announceLanguages(self, gesture):
 		ui.message(_("Translate: from {f} to {t}").format(f=g(self.lang_from), t=g(self.lang_to)))
-
-
-
 
 
 	@scriptHandler.script(description=_("Opens SmartLingo Pro settings."))
