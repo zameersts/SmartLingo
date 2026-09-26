@@ -3,6 +3,68 @@ Changelog - SmartLingo Pro
 
 All notable changes to SmartLingo Pro are documented here.
 
+Version 1.10
+------------
+
+New feature:
+
+- Auto-translate clipboard (new setting, off by default): any text you copy is translated right away. Text SmartLingo puts on the clipboard itself is skipped, so it never translates its own output.
+
+Voice input:
+
+- Voice engine rebuilt on a clear state machine. Cancelling during transcription now works, and commands are held off with "Voice input is in progress, please wait." while it runs.
+- Silence is trimmed and quiet recordings are boosted, without the audioop module that Python 3.13 removed.
+- A recording with no speech is refused instead of being sent to Whisper.
+- Whisper is now asked for a verbatim transcript, with sampling at 0 so it stops looping. Mixed Urdu, Hindi or Bengali with English keeps its English words in English.
+- Only languages Whisper supports can be selected, so the request is no longer rejected.
+- Specific errors for a wrong language, bad key, oversized clip, rate limit and outage, instead of one generic failure.
+- Speech timeout raised from 45 to 90 seconds, so long recordings are not cut off.
+- Recordings under 0.4 seconds are refused, and recording stops at 5 minutes.
+- A microphone buffer overflow is filled with matching silence, so a word is no longer cut in half.
+- The start tone plays before the microphone opens, so it never lands in your transcript.
+
+Voice dictation:
+
+- Dictated text is inserted through NVDA's own text interface instead of fake Ctrl+V presses, so the wrong window can no longer jump to the front and a key can no longer stick down.
+- If you move somewhere that cannot accept text, the text stays on your clipboard and you are told why.
+- Error messages are spoken, never typed into your document.
+
+Settings:
+
+- AI Assistant model (new): choose Groq or Gemini for the chat window. It is completely separate from the translation model, so changing one never affects the other. Groq is the default.
+- Spoken language for voice input (new): set the language you actually speak, instead of it being forced to your translation source language. Automatic detection is the default.
+- Dictation script: the old "Voice Dictation language" name, now clearer.
+- Automatically translate newly copied clipboard text (new, off by default).
+- Update check now also repeats every 6 hours, not just at startup.
+
+Translation:
+
+- Groq token limit raised from 1024 to 4096, so long answers are no longer cut off.
+- DeepL long text is split on word boundaries, so words no longer run together across chunks.
+- The dictation instruction always said "Roman Urdu" even for Hindi, Bengali or Nepali. It now names your language.
+- An empty answer now gives a clear message instead of silence.
+- Roman script dictation asks for a Groq or Gemini key instead of quietly falling back to Groq.
+
+AI Assistant (open it with NVDA+Alt+Enter):
+
+- The assistant answers instead of translating. It shared the translator's instructions, so it often translated your question instead of answering it. It now has its own instructions and replies in the language you wrote in.
+- Chat feels more natural: the reply temperature was raised from 0.1 to 0.6, because at 0.1 the model was too strict and fell back to translating.
+- You can pick the assistant's AI separately (Groq or Gemini), with no effect on the translation model.
+- If the wrong AI is picked, you get a clear message. Google Translate and DeepL only translate text, they cannot talk.
+- Errors now appear in the chat window. It used to get stuck on "SmartLingo is typing..." with the reason only spoken.
+- A reply no longer raises the window or takes your focus. The window only comes up if you opened it.
+- Copying during a chat no longer clears the conversation. The clipboard watcher stays out of the way while the chat window is open.
+
+Announcements:
+
+- Voice translation says "Recording started for translation...", voice typing says "Recording started for typing...".
+- Stopping says "Transcribing..." once, after the tone and the tail of the audio.
+- Pressing the same key again during transcription cancels it.
+- Translate, chat, swap and settings say "Voice input is in progress, please wait." while voice input runs.
+
+Housekeeping:
+
+- Unused imports removed, and state handling cleaned up in the updater, chat window and settings.
 Version 1.9
 ------------
 

@@ -20,6 +20,14 @@ _session.mount("https://", HTTPAdapter(max_retries=1))
 # Retryable HTTP status codes (temporary server-side issues)
 _RETRYABLE_CODES = {429, 500, 502, 503, 504}
 
+
+class TranslationError(Exception):
+	"""A failure whose message is safe to read out to the user."""
+
+
+class TranslationCancelled(Exception):
+	"""Raised when the caller cancelled the request through cancel_event."""
+
 # --- DeepL free (unofficial) endpoint constants ---
 _DEEPL_TRANSLATE_URL = "https://oneshot-free.www.deepl.com/v1/storefront/translate"
 _DEEPL_LANGUAGE_MODEL = "next-gen"
@@ -53,7 +61,7 @@ def _classify_error(status_code, response_text):
 
 
 class Translator(threading.Thread):
-	def __init__(self, lang_from, lang_to, text, lang_swap=None, conf=None, history=None, is_chat=False, is_dictation=False, cancel_event=None):
+	def __init__(self, lang_from, lang_to, text, lang_swap=None, conf=None, history=None, is_chat=False, is_dictation=False, cancel_event=None, model=None):
 		super().__init__()
 		self.lang_from = lang_from
 		self.lang_to = lang_to
@@ -62,16 +70,43 @@ class Translator(threading.Thread):
 		self.translation = None
 		self.lang_detected = None
 		self.error = None
+		self.cancelled = False
 		self.conf = conf or {}
 		self.history = history or []
 		self.is_chat = is_chat
 		self.is_dictation = is_dictation
+		# The AI Assistant can use a different model from the translation, so the
+		# caller passes it here. None means "use the model from the settings".
+		self.model = model
 		# Fix #1: Cancel event passed from caller — checked before retry attempts
 		self.cancel_event = cancel_event or threading.Event()
 
+	def _check_cancelled(self):
+		if self.cancel_event.is_set():
+			self.cancelled = True
+			raise TranslationCancelled()
+
+	@property
+	def _temperature(self):
+		# A conversation needs room to vary its wording; a translation must stay
+		# repeatable, so it keeps the low values.
+		if self.is_chat:
+			return 0.6
+		return 0.3 if self.history else 0.1
+
 	def run(self):
 		try:
-			model_type = self.conf.get("model", "groq")
+			model_type = self.model or self.conf.get("model", "groq")
+
+			# Google Translate and DeepL are translation endpoints, not chat models.
+			# They ignore the system prompt and the history entirely, so in chat
+			# mode they would answer every message with a translation. Saying so
+			# plainly is far better than letting the assistant look broken.
+			if self.is_chat and model_type in ("google", "deepl"):
+				raise TranslationError(
+					"The AI Assistant needs an AI model. Please choose Groq or Gemini in "
+					"SmartLingo settings. Google Translate and DeepL can only translate."
+				)
 
 			is_roman_target = "_roman" in self.lang_to
 			clean_target = self.lang_to.replace("_roman", "")
@@ -84,7 +119,10 @@ class Translator(threading.Thread):
 				elif self.conf.get("geminiApiKey"):
 					model_type = "gemini"
 				else:
-					model_type = "groq"
+					raise TranslationError(
+						"Roman Urdu dictation needs an AI model. Please set a Groq or "
+						"Gemini API key in SmartLingo settings."
+					)
 
 			if model_type == "google":
 				langSwap = clean_swap if (self.lang_from == "auto" and self.lang_swap) else None
@@ -100,6 +138,12 @@ class Translator(threading.Thread):
 				else:
 					self.translation = self.send_groq_request(system_prompt, user_text, self.conf.get("apiKey", ""))
 
+		except TranslationCancelled:
+			self.cancelled = True
+			self.translation = None
+		except TranslationError as e:
+			self.error = str(e)
+			log.error(f"SmartLingo: Translation error: {self.error}")
 		except Exception as e:
 			self.error = str(e)
 			log.error(f"SmartLingo: Translation error: {e}")
@@ -116,8 +160,7 @@ class Translator(threading.Thread):
 
 		for attempt in range(max_attempts):
 			# Fix #1: Check cancel before each attempt
-			if self.cancel_event.is_set():
-				return None
+			self._check_cancelled()
 
 			try:
 				resp = _session.post(url, **kwargs)
@@ -137,41 +180,45 @@ class Translator(threading.Thread):
 					# Wait with cancel check (sleep in small increments)
 					waited = 0.0
 					while waited < delay:
-						if self.cancel_event.is_set():
-							return None
+						self._check_cancelled()
 						time.sleep(0.1)
 						waited += 0.1
 					delay *= 2
 
 			except requests.exceptions.ConnectionError:
 				log.error("SmartLingo: No internet connection or DNS failure.")
-				self.error = "No internet connection. Please check your network."
-				return None
+				raise TranslationError("No internet connection. Please check your network.")
 			except requests.exceptions.Timeout:
 				log.error(f"SmartLingo: Request timed out on attempt {attempt+1}.")
 				if attempt < max_attempts - 1:
 					waited = 0.0
 					while waited < delay:
-						if self.cancel_event.is_set():
-							return None
+						self._check_cancelled()
 						time.sleep(0.1)
 						waited += 0.1
 					delay *= 2
 				else:
-					self.error = "Request timed out. Please try again."
-					return None
+					raise TranslationError("Request timed out. Please try again.")
+			except (TranslationError, TranslationCancelled):
+				raise
 			except Exception as e:
 				log.error(f"SmartLingo: Unexpected network error: {e}")
-				self.error = str(e)
-				return None
+				raise TranslationError(str(e))
 
 		return last_resp
 
 	def prepare_prompt(self, text, lang_from, lang_to, is_roman, swap_lang=None, is_roman_swap=False):
 		if self.is_dictation:
 			target_name = g(lang_to)
+			# "Roman Urdu" wording is wrong when the dictation target is Hindi,
+			# Bengali or Nepali, so the script is named after the chosen language.
+			script_rule = (
+				f"Use Roman {target_name} written in Latin characters."
+				if is_roman
+				else f"Use the standard {target_name} script."
+			)
 			system = (
-				f"Convert the following text to {target_name} script. If it's Urdu, use Roman Urdu (Latin script). "
+				f"Convert the following dictated text to {target_name}. {script_rule} "
 				"DO NOT translate. If a word is already in English, KEEP IT EXACTLY AS-IS in English/Latin script — "
 				"do not transliterate English words phonetically into the target script. "
 				"If the text is already in the target script or another language, return it exactly as is. "
@@ -181,34 +228,56 @@ class Translator(threading.Thread):
 
 		target_name = g(lang_to)
 		swap_name = g(swap_lang) if swap_lang else ""
-
 		target_script = "Roman script (Latin letters)" if is_roman else "original script"
 		swap_script = "Roman script (Latin letters)" if is_roman_swap else "original script"
 
-		system = "You are SmartLingo, a powerful and helpful AI Assistant. "
-
 		if self.is_chat:
-			system += "You are in CHAT MODE. Your goal is to be a standalone AI assistant for the user.\n"
-			system += "- Maintain context from previous messages.\n"
-			system += "- Answer questions, provide information, and hold a natural conversation.\n"
-			system += "- Only translate if the user explicitly asks for a translation.\n"
-			system += "- Be concise, professional, and friendly.\n"
+			# A separate prompt on purpose. Anything about a target language, a
+			# source language or "return only the translated text" is what makes
+			# the model answer a question with a translation instead of an answer,
+			# so none of it is allowed to reach the model in this mode.
+			system = (
+				"You are SmartLingo, a helpful AI assistant talking with the user in the "
+				"SmartLingo AI Assistant window.\n"
+				"You are NOT a translation tool in this window.\n"
+				"\n"
+				"RULES:\n"
+				"- Answer the user's questions, give information, and hold a natural conversation.\n"
+				"- Do not translate the user's message, do not repeat it back, and do not rewrite "
+				"it in another language, unless the user explicitly asks you to translate something.\n"
+				"- Reply in the same language the user wrote in, and follow their lead if they switch.\n"
+				"- Keep the whole conversation in mind, and refer back to earlier messages when they "
+				"are relevant.\n"
+				"- Be concise, professional and friendly.\n"
+			)
+			if "urdu" in (target_name + " " + swap_name).lower():
+				system += (
+					"- When you do use Urdu, prefer authentic Pakistani Urdu vocabulary with "
+					"Perso-Arabic roots over Sanskritized Hindi words.\n"
+				)
+			system += (
+				"\n"
+				"EXAMPLES:\n"
+				'- User: "What is the capital of Pakistan?" -> You: "Islamabad is the capital of Pakistan."\n'
+				'- User: "How do I turn on dark mode?" -> You: give the steps to do it.\n'
+				'- User: "Tell me a joke." -> You: tell a joke.\n'
+				'- User: "Translate good morning into Urdu." -> Only here do you translate.\n'
+			)
+			return system, text
+
+		system = "You are SmartLingo, a powerful and helpful AI Assistant. "
+		system += "You are a professional linguistic assistant specializing in Pakistani Urdu and regional languages.\n\n"
+		if lang_from == "auto" and swap_lang:
+			system += "AUTO-SWAP MODE:\n"
+			system += f"- Your primary target is {target_name}. However, if the input is already in {target_name}, you MUST translate it into {swap_name} ({swap_script}) instead.\n"
+			system += f"- If the input is in {swap_name} or ANY other language, translate it into {target_name} ({target_script}).\n"
+			system += "- ALWAYS detect the language first and then choose the destination based on these two rules.\n"
 		else:
-			system += "You are a professional linguistic assistant specializing in Pakistani Urdu and regional languages.\n\n"
-			if lang_from == "auto" and swap_lang:
-				system += "AUTO-SWAP MODE:\n"
-				system += f"- Your primary target is {target_name}. However, if the input is already in {target_name}, you MUST translate it into {swap_name} ({swap_script}) instead.\n"
-				system += f"- If the input is in {swap_name} or ANY other language, translate it into {target_name} ({target_script}).\n"
-				system += "- ALWAYS detect the language first and then choose the destination based on these two rules.\n"
-			else:
-				system += f"TASK: Translate the input text exclusively into {target_name} (using {target_script}).\n"
+			system += f"TASK: Translate the input text exclusively into {target_name} (using {target_script}).\n"
 
 		system += "\nRULES:\n"
-		if not self.is_chat:
-			system += "- Return ONLY the translated text.\n"
-			system += "- DO NOT include explanations, notes, or original text.\n"
-		else:
-			system += "- Answer the user directly.\n"
+		system += "- Return ONLY the translated text.\n"
+		system += "- DO NOT include explanations, notes, or original text.\n"
 
 		combined_names = (target_name + " " + swap_name).lower()
 		if any(word in combined_names for word in ["urdu", "hindi", "bengali"]):
@@ -217,21 +286,20 @@ class Translator(threading.Thread):
 				if is_roman or is_roman_swap:
 					system += "- ROMAN URDU STYLE: Use standard Pakistani Romanization (e.g., 'hain' instead of 'h', 'hoon' instead of 'hu', 'kaise' instead of 'kese').\n"
 
-		if not self.is_chat:
-			system += "\nEXAMPLES:\n"
-			if "urdu" in combined_names:
-				is_auto = lang_from == "auto"
-				show_roman = is_roman or (is_auto and is_roman_swap)
-				if show_roman:
-					system += "- Input: \"How are you?\" -> Output: \"Aap kaise hain?\"\n"
-				else:
-					system += "- Input: \"How are you?\" -> Output: \"آپ کیسے ہیں؟\"\n"
+		system += "\nEXAMPLES:\n"
+		if "urdu" in combined_names:
+			is_auto = lang_from == "auto"
+			show_roman = is_roman or (is_auto and is_roman_swap)
+			if show_roman:
+				system += "- Input: \"How are you?\" -> Output: \"Aap kaise hain?\"\n"
+			else:
+				system += "- Input: \"How are you?\" -> Output: \"آپ کیسے ہیں؟\"\n"
 
 		return system, text
 
 	def send_groq_request(self, system_prompt, user_text, api_key):
 		if not api_key:
-			return "Error: Groq API key missing. Please add your key in SmartLingo settings."
+			raise TranslationError("Groq API key missing. Please add your key in SmartLingo settings.")
 
 		headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
 		messages = [{"role": "system", "content": system_prompt}]
@@ -241,8 +309,8 @@ class Translator(threading.Thread):
 		data = {
 			"model": "openai/gpt-oss-120b",
 			"messages": messages,
-			"temperature": 0.3 if self.history else 0.1,
-			"max_tokens": 1024
+			"temperature": self._temperature,
+			"max_tokens": 4096
 		}
 
 		resp = self._post_with_retry(
@@ -251,20 +319,21 @@ class Translator(threading.Thread):
 		)
 
 		if resp is None:
-			return self.error or "Request was cancelled."
+			self._check_cancelled()
+			raise TranslationError("Request was cancelled.")
 
 		if resp.status_code == 200:
 			try:
 				return resp.json()["choices"][0]["message"]["content"].strip()
-			except (KeyError, IndexError, ValueError) as e:
+			except (KeyError, IndexError, ValueError, AttributeError) as e:
 				log.error(f"SmartLingo: Unexpected Groq response format: {e} | {resp.text[:200]}")
-				return "Error: Unexpected response from Groq API."
+				raise TranslationError("Unexpected response from Groq API.")
 
-		return _classify_error(resp.status_code, resp.text)
+		raise TranslationError(_classify_error(resp.status_code, resp.text))
 
 	def send_gemini_request(self, system_prompt, user_text, api_key):
 		if not api_key:
-			return "Error: Gemini API key missing. Please add your key in SmartLingo settings."
+			raise TranslationError("Gemini API key missing. Please add your key in SmartLingo settings.")
 
 		url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
 		headers = {"Content-Type": "application/json"}
@@ -278,22 +347,23 @@ class Translator(threading.Thread):
 		data = {
 			"system_instruction": {"parts": [{"text": system_prompt}]},
 			"contents": contents,
-			"generationConfig": {"temperature": 0.3 if self.history else 0.1}
+			"generationConfig": {"temperature": self._temperature}
 		}
 
 		resp = self._post_with_retry(url, json=data, headers=headers, timeout=60, verify=True)
 
 		if resp is None:
-			return self.error or "Request was cancelled."
+			self._check_cancelled()
+			raise TranslationError("Request was cancelled.")
 
 		if resp.status_code == 200:
 			try:
 				return resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
-			except (KeyError, IndexError, ValueError) as e:
+			except (KeyError, IndexError, ValueError, TypeError, AttributeError) as e:
 				log.error(f"SmartLingo: Unexpected Gemini response format: {e} | {resp.text[:200]}")
-				return "Error: Unexpected response from Gemini API."
+				raise TranslationError("Unexpected response from Gemini API.")
 
-		return _classify_error(resp.status_code, resp.text)
+		raise TranslationError(_classify_error(resp.status_code, resp.text))
 
 	def send_google_free_request(self, text, lang_from, lang_to, lang_swap=None):
 		"""
@@ -344,7 +414,7 @@ class Translator(threading.Thread):
 			return translation, detected
 
 		if self.cancel_event.is_set():
-			return "Request was cancelled."
+			self._check_cancelled()
 
 		try:
 			resp = _do_request(lang_to)
@@ -354,21 +424,24 @@ class Translator(threading.Thread):
 
 				# Handle auto-swap
 				if detected and lang_swap and detected.split("-")[0] == lang_to.split("-")[0]:
-					if self.cancel_event.is_set():
-						return "Request was cancelled."
+					self._check_cancelled()
 					resp = _do_request(lang_swap)
 					if resp.status_code == 200:
 						data = resp.json()
 						translation, detected = _parse(data)
 
+				if not translation.strip():
+					raise TranslationError("Google Translate returned an empty result.")
 				return translation
 
 			if resp.status_code == 429:
-				return "Error: Google Translate rate limit reached. Please try again later."
-			return f"Error: Google Translate API returned status code {resp.status_code}."
+				raise TranslationError("Google Translate rate limit reached. Please try again later.")
+			raise TranslationError(f"Google Translate returned status code {resp.status_code}.")
+		except (TranslationError, TranslationCancelled):
+			raise
 		except Exception as e:
 			log.error(f"SmartLingo: Google Translate request exception: {e}")
-			return f"Error: {str(e)}"
+			raise TranslationError(str(e))
 
 	def _deepl_translate_chunk(self, chunk, lang_from, lang_to):
 		"""
@@ -401,6 +474,31 @@ class Translator(threading.Thread):
 		detected = (translation.get("detected_source_language") or lang_from or "").lower()
 		return translation.get("text") or "", detected
 
+	def _split_for_deepl(self, text):
+		"""
+		Splits text into chunks of at most _DEEPL_MAX_CHUNK_SIZE characters,
+		breaking only on whitespace so no word is cut in half.
+		"""
+		chunks = []
+		current = ""
+		for word in text.split(" "):
+			# A single word longer than the limit has to be sent whole.
+			if len(word) > _DEEPL_MAX_CHUNK_SIZE:
+				if current:
+					chunks.append(current)
+					current = ""
+				chunks.append(word)
+				continue
+			candidate = f"{current} {word}" if current else word
+			if len(candidate) > _DEEPL_MAX_CHUNK_SIZE:
+				chunks.append(current)
+				current = word
+			else:
+				current = candidate
+		if current:
+			chunks.append(current)
+		return chunks or [""]
+
 	def send_deepl_free_request(self, text, lang_from, lang_to, lang_swap=None):
 		"""
 		Free translation via DeepL's unofficial "oneshot-free" storefront endpoint
@@ -409,13 +507,9 @@ class Translator(threading.Thread):
 		endpoint has an informal size limit per request.
 		"""
 		if self.cancel_event.is_set():
-			return "Request was cancelled."
+			self._check_cancelled()
 
-		# Split into chunks the same way DeepL's site itself does (fixed char size).
-		chunks = [
-			text[i:i + _DEEPL_MAX_CHUNK_SIZE]
-			for i in range(0, len(text), _DEEPL_MAX_CHUNK_SIZE)
-		] or [""]
+		chunks = self._split_for_deepl(text)
 
 		translated_parts = []
 		effective_to = lang_to
@@ -423,8 +517,7 @@ class Translator(threading.Thread):
 
 		try:
 			for index, chunk in enumerate(chunks):
-				if self.cancel_event.is_set():
-					return "Request was cancelled."
+				self._check_cancelled()
 
 				translation, detected = self._deepl_translate_chunk(chunk, lang_from, effective_to)
 
@@ -437,8 +530,12 @@ class Translator(threading.Thread):
 
 				translated_parts.append(translation)
 
-			return "".join(translated_parts)
+			# A space is required between chunks, otherwise the last word of one
+			# chunk and the first word of the next run together.
+			return " ".join(part for part in translated_parts if part).strip()
+		except (TranslationError, TranslationCancelled):
+			raise
 		except Exception as e:
 			log.error(f"SmartLingo: DeepL request exception: {e}")
-			return f"Error: {str(e)}"
+			raise TranslationError(str(e))
 

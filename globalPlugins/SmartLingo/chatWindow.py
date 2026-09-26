@@ -4,9 +4,6 @@
 import wx
 import gui
 import ui
-import queueHandler
-import addonHandler
-from logHandler import log
 
 class SmartLingoChatDialog(wx.Dialog):
 	_instance = None
@@ -104,13 +101,19 @@ class SmartLingoChatDialog(wx.Dialog):
 				ui.message(_("Error: Assistant module not connected."))
 
 
-def show_chat_window(translate_callback=None, initial_text=None, ai_response=None):
+def show_chat_window(translate_callback=None, initial_text=None, ai_response=None, error=None):
 	d = SmartLingoChatDialog(gui.mainFrame, translate_callback=translate_callback)
 
 	if initial_text and getattr(d, '_last_sent', None) != initial_text:
 		d.appendMessage(_("You"), initial_text)
 
-	if ai_response:
+	if error:
+		# Without this the window would stay stuck on "SmartLingo is typing..."
+		# and the reason would only be spoken, never shown where the user reads.
+		d.setStatus("")
+		d.appendMessage(_("SmartLingo"), error)
+		ui.message(_("Assistant error: ") + error)
+	elif ai_response:
 		d.setStatus("")  # Clear "thinking..." status
 		d.appendMessage(_("SmartLingo"), ai_response)
 		# Fix #13: Speech flood fix — speak short notification instead of full response
@@ -118,8 +121,9 @@ def show_chat_window(translate_callback=None, initial_text=None, ai_response=Non
 		ui.message(_("Response received."))
 
 	d._last_sent = None
-	d.Show()
-	d.Raise()
-
-	# Focus the input field so user can type immediately
-	d.inputCtrl.SetFocus()
+	# The window is only raised when the user opened it. A reply arriving while
+	# they are doing something else must not steal focus or pop the dialog up.
+	if not d.IsShown():
+		d.Show()
+		d.Raise()
+		d.inputCtrl.SetFocus()

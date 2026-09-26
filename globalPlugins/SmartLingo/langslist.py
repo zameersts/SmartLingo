@@ -3,7 +3,6 @@
 # Based on SmartLingo's langslist.py
 
 from languageHandler import getLanguageDescription
-from logHandler import log
 import addonHandler
 addonHandler.initTranslation()
 

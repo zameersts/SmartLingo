@@ -36,9 +36,11 @@
   <li><strong>Speak to Translate:</strong> Press a hotkey, speak into your microphone, and we'll translate your voice!</li>
   <li><strong>Smart Language Detection:</strong> You don't even need to tell it what language you're copying—it'll figure it out automatically.</li>
   <li><strong>Quick Language Swap:</strong> Easily switch between your source and target languages. It even does this automatically if it detects you're already reading in your target language!</li>
-  <li><strong>Standalone AI Assistant:</strong> SmartLingo is now your personal AI companion. Open the chat window anytime to ask questions, brainstorm ideas, or hold a natural conversation with full context.</li>
+  <li><strong>AI Assistant:</strong> Press <strong>NVDA+Alt+Enter</strong> to open the chat window. It remembers the whole conversation, answers your questions instead of translating them, and replies in the language you write in. Pick Groq or Gemini for it in the settings, under "AI Assistant model". This is separate from the translation model, so you can translate with the free Google Translate and still chat with Groq. The window stays out of your way and does not steal focus when a reply arrives.</li>
   <li><strong>Auto-Copy:</strong> As soon as a translation is ready, we copy it to your clipboard so you can paste it anywhere.</li>
-  <li><strong>Automatic Updates:</strong> Don't worry about missing new features! SmartLingo checks for new versions on GitHub and updates itself.</li>
+  <li><strong>Auto-Translate Clipboard (optional):</strong> Turn this on and any text you copy is translated straight away, without pressing the translate key. It is off by default, and SmartLingo never re-translates its own output.</li>
+  <li><strong>Spoken Language Setting:</strong> Tell SmartLingo the language you actually speak. This is separate from the translation languages, and it is what keeps English words in English when you mix them with Urdu, Hindi or Bengali.</li>
+  <li><strong>Automatic Updates:</strong> Don't worry about missing new features! SmartLingo checks for new versions on GitHub at startup and again every 6 hours, and only speaks up when there is actually something new.</li>
   <li><strong>Pick your AI:</strong> Choose between Google Gemini, Groq, or Google Translate based on what you prefer (Google Translate does not require an API key for text translation).</li>
 </ul>
 
@@ -66,7 +68,7 @@
   <tr><td><strong>NVDA + Alt + T</strong></td><td>Translate whatever text you currently have copied.</td></tr>
   <tr><td><strong>NVDA + Alt + V</strong></td><td>Start/Stop recording your voice for translation.</td></tr>
   <tr><td><strong>NVDA + Alt + D</strong></td><td>Start/Stop voice typing (dictation) directly into an edit box without translation.</td></tr>
-  <tr><td><strong>NVDA + Alt + C</strong></td><td>Cancel an ongoing voice recording or translation. Says "Nothing to cancel" if idle.</td></tr>
+  <tr><td><strong>NVDA + Alt + C</strong></td><td>Cancel an ongoing voice recording, an ongoing transcription, or a translation. Says "Nothing to cancel" if idle.</td></tr>
   <tr><td><strong>NVDA + Alt + S</strong></td><td>Swap your source and target languages around.</td></tr>
   <tr><td><strong>NVDA + Alt + A</strong></td><td>Check what languages you are currently translating between.</td></tr>
   <tr><td><strong>NVDA + Alt + L</strong></td><td>Jump straight into the SmartLingo settings.</td></tr>
@@ -74,22 +76,40 @@
 </table>
 
 <h2>⚙️ Customizing SmartLingo</h2>
-<p>You can tweak how SmartLingo works by going to <strong>NVDA Settings > SmartLingo Pro</strong>. Here's what you can change:</p>
+<p>You can tweak how SmartLingo works by going to <strong>NVDA Settings &gt; SmartLingo Pro</strong>. Here's what you can change:</p>
 <ul>
-  <li><strong>AI Model & API Key:</strong> Choose which AI brain you want to use and give it the key.</li>
+  <li><strong>AI Model &amp; API Key:</strong> Choose which AI brain you want to use and give it the key.</li>
+  <li><strong>AI Assistant model:</strong> Choose which AI runs the chat window: <strong>Groq</strong> or <strong>Gemini</strong>. This setting is completely separate from the translation model, so switching one never affects the other. Groq is selected by default. Google Translate and DeepL translate text, they cannot hold a conversation, so they are not offered here.</li>
   <li><strong>Languages:</strong> Set what language you usually translate from (or leave it on Auto-detect) and what language you want things translated into.</li>
-  <li><strong>Auto-Swap & Language for swapping:</strong> If you try to translate something that's already in your target language, SmartLingo will be smart enough to flip the languages around for you!</li>
+  <li><strong>Auto-Swap &amp; Language for swapping:</strong> If you try to translate something that's already in your target language, SmartLingo will be smart enough to flip the languages around for you!</li>
   <li><strong>Auto-copy:</strong> Decide if you want every translation to be automatically copied to your clipboard.</li>
+  <li><strong>Automatically translate newly copied clipboard text:</strong> Optional, and off by default. When it is on, any text you copy with Ctrl+C is translated automatically, so you do not have to press the translate key each time. Text that SmartLingo itself puts on the clipboard is skipped, so it can never translate its own output in a loop.</li>
+  <li><strong>Dictation script:</strong> The script your dictated text is converted to, for example Roman Urdu. Used by voice typing only.</li>
+  <li><strong>Spoken language for voice input:</strong> The language you actually speak, used by both voice translation and voice typing. Leave it on automatic detection unless you speak only one language. Forcing the wrong language here is what makes Whisper write your English words in the wrong script.</li>
+  <li><strong>Automatically check for updates on startup:</strong> On by default. The check also repeats every 6 hours, so you do not have to restart NVDA to notice a new release. Untick it to stop checking altogether. <strong>Check for Updates now</strong> checks immediately and tells you the result either way.</li>
 </ul>
 
 <h2>🎤 Using Your Voice</h2>
 <p>Want to just talk? It's easy!</p>
 <ul>
-  <li>Press <strong>NVDA + Alt + V</strong>, say what you want to translate, and press the shortcut again to stop.</li>
-  <li>For voice typing (dictation) without translation, press <strong>NVDA + Alt + D</strong> to type directly into an active edit box.</li>
-  <li>To cancel at any time, press <strong>NVDA + Alt + C</strong>.</li>
+  <li>Press <strong>NVDA + Alt + V</strong>, say what you want to translate, and press the shortcut again to stop. It says <em>"Recording started for translation..."</em>.</li>
+  <li>For voice typing (dictation) without translation, press <strong>NVDA + Alt + D</strong> to type directly into an active edit box. It says <em>"Recording started for typing..."</em>.</li>
+  <li>To cancel at any time, press <strong>NVDA + Alt + C</strong>. This works while you are recording and while your speech is being transcribed, in which case it says <em>"Transcription cancelled."</em></li>
+  <li>While voice input is running, the other SmartLingo shortcuts will say <em>"Voice input is in progress, please wait."</em> rather than starting on top of it.</li>
+  <li><strong>Quality tips:</strong> SmartLingo trims the silence at the start and end and boosts quiet recordings before sending them, so you do not have to leave long gaps. A recording with no speech in it is refused with <em>"No speech was detected."</em> instead of being sent off to be turned into invented text. Recordings shorter than 0.4 seconds are refused, recording stops automatically at 5 minutes, and a long recording is given 90 seconds to be transcribed before it is timed out.</li>
   <li><strong>Important:</strong> Voice input (both voice translation and dictation) requires a <strong>Groq API key</strong> to function. This is because speech-to-text is handled by Groq's Whisper API. Gemini and Google Translate do not support speech-to-text natively in the addon. You must provide a Groq API key in the settings to use voice features, even if your translation model is set to Gemini or Google Translate.</li>
   <li>PyAudio is included with the addon and does not need to be installed separately.</li>
+</ul>
+
+<h2>🔔 What you will hear</h2>
+<p>SmartLingo always tells you what it is doing, so you never have to guess whether your key press registered:</p>
+<ul>
+  <li><em>"Recording started for translation..."</em> or <em>"Recording started for typing..."</em> when the microphone opens.</li>
+  <li><em>"Transcribing..."</em> once, after you stop, once the tail of your audio has been captured.</li>
+  <li><em>"Recording was too short."</em>, <em>"No speech was detected. Please check your microphone."</em>, or <em>"Recording limit of 5 minutes reached. Stopping."</em> when something is wrong with the recording itself.</li>
+  <li><em>"Cancelling transcription..."</em> if you press the same key again while it is transcribing.</li>
+  <li>A specific message for each real problem, such as an invalid Groq API key, a wrong speech language, a rate limit, no internet connection, or the speech service being temporarily unavailable. It will also tell you plainly when the service returned an empty result.</li>
+  <li>Dictation never types an error message into your document. If the focus moved somewhere that cannot accept text, it leaves the text on your clipboard and tells you instead.</li>
 </ul>
 
 <h2>🙌 Credits & Thanks</h2>

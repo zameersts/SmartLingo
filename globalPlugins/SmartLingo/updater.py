@@ -3,14 +3,12 @@
 # Security: All downloads validated against GitHub domain. No user data collected.
 
 import requests
-import json
 import os
 import tempfile
 import threading
 import wx
 import gui
 import addonHandler
-import ssl
 import time
 
 GITHUB_REPO = "zameersts/SmartLingo"

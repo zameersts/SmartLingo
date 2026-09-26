@@ -2,7 +2,7 @@
 
 The main documentation lives in the repository root: [README.md](../README.md).
 
-It covers features, installation, keyboard shortcuts, settings, voice input, and the full per-version "What's New" sections for 1.7 and 1.8.
+It covers features, installation, keyboard shortcuts, settings, voice input, and the full per-version "What's New" sections for 1.7 through 1.10.
 
 For the complete per-version history, see [changelog.md](changelog.md).
 

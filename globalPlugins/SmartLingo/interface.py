@@ -32,7 +32,25 @@ class SmartLingoSettingsPanel(SettingsPanel):
 		elif model_val == "deepl":
 			selection_idx = 3
 		self.modelChoice.SetSelection(selection_idx)
-		
+
+		# The AI Assistant can run on a different model from the translation, so
+		# that translating with Google Translate or DeepL does not cost you the
+		# assistant. The two settings are completely independent of each other.
+		self.assistantModelChoice = helper.addLabeledControl(
+			_("AI Assistant model:"),
+			wx.Choice,
+			choices=["Groq", "Gemini"],
+		)
+		self.assistantModelChoice.SetSelection(
+			1 if (self.addonConf.get("assistantsmodel") or "groq").lower() == "gemini" else 0
+		)
+		helper.addItem(
+			wx.StaticText(
+				self,
+				label=_("This is separate from the translation model. It only applies to the AI Assistant window."),
+			)
+		)
+
 		# API Keys
 		def makeLabeledControl(labelStr, valueStr, api_url=None):
 			sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -75,7 +93,28 @@ class SmartLingoSettingsPanel(SettingsPanel):
 			into_choices.remove(auto_name)
 		self._intoChoice = helper.addLabeledControl(_("Target language:"), wx.Choice, choices=into_choices)
 		self._swapChoice = helper.addLabeledControl(_("Language for swapping (if Source is Auto):"), wx.Choice, choices=into_choices)
-		self._dictationChoice = helper.addLabeledControl(_("Voice Dictation language:"), wx.Choice, choices=from_choices)
+		self._dictationChoice = helper.addLabeledControl(_("Dictation script:"), wx.Choice, choices=from_choices)
+
+		# Speech recognition language is a separate list because Whisper only
+		# supports its own set of languages, and sending anything else fails.
+		from .voiceInput import speech_lang_choices
+		self._speechLangChoices = speech_lang_choices()
+		self._speechLangChoice = helper.addLabeledControl(
+			_("Spoken language for voice input:"),
+			wx.Choice,
+			choices=[label for label, code in self._speechLangChoices],
+		)
+		speech_codes = [code for label, code in self._speechLangChoices]
+		speech_val = self.addonConf.get("speechlang", "auto")
+		self._speechLangChoice.SetSelection(
+			speech_codes.index(speech_val) if speech_val in speech_codes else 0
+		)
+		helper.addItem(
+			wx.StaticText(
+				self,
+				label=_("Automatic detection works best unless you speak one language only."),
+			)
+		)
 		
 		# Toggles
 		self.autoSwapChk = helper.addItem(wx.CheckBox(self, label=_("Activate auto-swap if recognized source is target")))
@@ -83,6 +122,9 @@ class SmartLingoSettingsPanel(SettingsPanel):
 		
 		self.copyTranslationChk = helper.addItem(wx.CheckBox(self, label=_("Copy translation result to clipboard")))
 		self.copyTranslationChk.SetValue(self.addonConf.get('copytranslatedtext', True))
+		
+		self.autoClipboardChk = helper.addItem(wx.CheckBox(self, label=_("Automatically translate newly copied clipboard text")))
+		self.autoClipboardChk.SetValue(self.addonConf.get('autotranslateclipboard', False))
 
 		# Update Settings
 		helper.addItem(wx.StaticLine(self))
@@ -153,6 +195,9 @@ class SmartLingoSettingsPanel(SettingsPanel):
 		else:
 			model_val = "groq"
 		self.addonConf['model'] = model_val
+		self.addonConf['assistantsmodel'] = (
+			"gemini" if self.assistantModelChoice.GetStringSelection().lower() == "gemini" else "groq"
+		)
 		self.addonConf['apiKey'] = self.apiKeyField.GetValue()
 		self.addonConf['geminiApiKey'] = self.geminiKeyField.GetValue()
 		# Map display name back to language code using .get() to avoid crashes on unknown names
@@ -160,6 +205,9 @@ class SmartLingoSettingsPanel(SettingsPanel):
 		self.addonConf['into'] = langslist.get(self._intoChoice.GetStringSelection(), 'en')
 		self.addonConf['swap'] = langslist.get(self._swapChoice.GetStringSelection(), 'ur_roman')
 		self.addonConf['dictationlang'] = langslist.get(self._dictationChoice.GetStringSelection(), 'en')
+		speech_idx = self._speechLangChoice.GetSelection()
+		self.addonConf['speechlang'] = self._speechLangChoices[speech_idx][1] if speech_idx >= 0 else 'auto'
 		self.addonConf['autoswap'] = self.autoSwapChk.GetValue()
 		self.addonConf['copytranslatedtext'] = self.copyTranslationChk.GetValue()
+		self.addonConf['autotranslateclipboard'] = self.autoClipboardChk.GetValue()
 		self.addonConf['autoupdate'] = self.autoUpdateChk.GetValue()
